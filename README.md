@@ -67,6 +67,29 @@ prisma/
 
 ---
 
+## Docker
+
+Full stack (MySQL + API). On container start, `prisma migrate deploy` runs before the app (override with `SKIP_MIGRATIONS=1` if needed).
+
+```bash
+cd backend
+docker compose up --build
+```
+
+Defaults: API **http://localhost:3001** → container **3000**; MySQL **localhost:3306**. To change only the API port on your machine, set **`API_PORT`** in `backend/.env`. Also set `SECRET`, `MYSQL_ROOT_PASSWORD`, `DATABASE_URL`, OAuth, etc.
+
+- **`DATABASE_URL`** inside Compose must use host **`db`** (the database service name), e.g. `mysql://root:YOUR_PASSWORD@db:3306/zreq`, matching `MYSQL_ROOT_PASSWORD` / `MYSQL_DATABASE`.
+- **`docker build`** / **`docker run`** for the API image only:
+
+```bash
+docker build -t zreq-api .
+docker run --rm -e DATABASE_URL="mysql://..." -e SECRET="..." -e PORT=3000 -p 3001:3000 zreq-api
+```
+
+Change the left side of `-p` for the host port; keep `PORT` and the right side of `-p` in sync if you change the in-container listen port.
+
+---
+
 ## Setup
 
 ```bash

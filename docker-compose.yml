@@ -1,0 +1,54 @@
+# API host port: set PORT in .env (default 3030). MySQL is fixed at host 3306 → container 3306.
+name: zreq
+services:
+    db:
+        container_name: zreq-db
+        image: mysql:8.4
+        restart: unless-stopped
+        networks:
+            - zreq_net
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+            MYSQL_DATABASE: ${MYSQL_DATABASE:-zreq}
+        volumes:
+            - zreq_data:/var/lib/mysql
+        healthcheck:
+            test:
+                [
+                    'CMD-SHELL',
+                    'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" || exit 1'
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 15
+            start_period: 30s
+
+    api:
+        container_name: zreq-server
+        build: .
+        restart: unless-stopped
+        networks:
+            - zreq_net
+        ports:
+            - '${PORT:-3030}:3000'
+        environment:
+            PORT: '3000'
+            # Same creds as db service — avoids host .env pointing at 127.0.0.1 breaking migrate in-container
+            DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@db:3306/${MYSQL_DATABASE:-zreq}
+            SECRET: ${SECRET:-change-me-in-production}
+            BODY_LIMIT: ${BODY_LIMIT:-}
+            GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+            GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+            GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-}
+            FRONTEND_OAUTH_URL: ${FRONTEND_OAUTH_URL:-}
+            SKIP_MIGRATIONS: ${SKIP_MIGRATIONS:-0}
+        depends_on:
+            db:
+                condition: service_healthy
+
+volumes:
+    zreq_data:
+
+networks:
+    zreq_net:
+        name: zreq_net
