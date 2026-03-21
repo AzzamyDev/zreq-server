@@ -3,9 +3,22 @@ import { PoolConfig } from 'mariadb'
 export function getConnectionConfig(url: string): PoolConfig {
     if (!url) throw new Error('DATABASE_URL is not set')
 
-    // Parse the DATABASE_URL to extract connection parameters
-    const match = url.match(/^mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/)
-    if (!match) throw new Error('DATABASE_URL format is invalid')
+    let match: RegExpMatchArray | null = null;
+    try {
+        const parsed = new URL(url);
+        const decodedPassword = decodeURIComponent(parsed.password);
+        if (parsed.protocol !== 'mysql:') throw new Error();
+        match = [
+            '', // full match placeholder (not used)
+            parsed.username,
+            decodedPassword,
+            parsed.hostname,
+            parsed.port,
+            parsed.pathname.replace(/^\//, ''),
+        ];
+    } catch {
+        throw new Error('DATABASE_URL format is invalid');
+    }
 
     const [, user, password, host, portStr, database] = match
     const port = Number(portStr)
