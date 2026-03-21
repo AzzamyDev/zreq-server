@@ -1,0 +1,125 @@
+# ZReq API
+
+Backend for **[ZReq](../client/README.md)** — the workspace-first HTTP client. This NestJS service stores users, workspaces, collections (request trees as JSON), and environments; it powers authentication (including GitHub OAuth) and everything the desktop or web client syncs against.
+
+<p align="center">
+  <a href="https://nestjs.com/"><img src="https://img.shields.io/badge/Nest.js-11-E0234E?style=flat&logo=nestjs" alt="Nest.js"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat&logo=typescript" alt="TypeScript"></a>
+  <a href="https://www.prisma.io/"><img src="https://img.shields.io/badge/Prisma-7-2D3748?style=flat&logo=prisma" alt="Prisma"></a>
+  <a href="https://www.mysql.com/"><img src="https://img.shields.io/badge/MySQL-8-4479A1?style=flat&logo=mysql" alt="MySQL"></a>
+</p>
+
+---
+
+## What it does
+
+- **Auth** — `POST /auth/register`, `POST /auth/login`, JWT-based sessions, **GitHub OAuth** (`GET /auth/github`, callback, HTML redirect for web and custom `zreq://` deep links for Tauri).
+- **Workspaces** — CRUD plus **members** (invite existing users by email): `GET/POST /workspaces`, `GET/POST/DELETE .../members`, etc.
+- **Collections** — Per-workspace folders/requests stored as **JSON** (`items`): list, get, create, update, delete under `/collections`.
+- **Environments** — Named environments with **variables** (key/value, enabled flag): `/environments`.
+- **Users** — User management endpoints under `/users` (used by the stack as needed).
+- **Health** — `GET /health` returns `{ ok: true, service: 'zreq-api' }` so the client can verify a base URL during instance setup.
+
+There is **no global `/api` prefix** (see `src/main.ts`). CORS is enabled for all origins; adjust for production. Request body size defaults to **50MB** (configurable via `BODY_LIMIT`) so large Postman-style imports do not hit `413`.
+
+---
+
+## Stack
+
+| Layer | Choice |
+|--------|--------|
+| Framework | NestJS 11 |
+| ORM | Prisma 7 (client output: `prisma/generated`) |
+| Database | MySQL via `@prisma/adapter-mariadb` / `mariadb` driver |
+| Validation | Zod + `nestjs-zod` (global pipe & serializer) |
+
+---
+
+## Project layout
+
+```
+src/
+├── config/
+│   ├── prisma/          # PrismaModule & PrismaService
+│   └── exception/       # Global filters (e.g. 404)
+├── features/
+│   ├── auth/
+│   ├── users/
+│   ├── workspaces/
+│   ├── collections/
+│   └── environments/
+├── health/              # GET /health
+├── app.module.ts
+└── main.ts
+prisma/
+├── schema.prisma
+├── seed.ts
+└── migrations/
+```
+
+---
+
+## Prerequisites
+
+- Node.js (LTS)
+- MySQL or MariaDB
+- `pnpm` (lockfile present; `npm` / `yarn` work if you prefer)
+
+---
+
+## Setup
+
+```bash
+cd backend
+cp .env.example .env
+# Set DATABASE_URL, SECRET, PORT, and GitHub OAuth vars if you use GitHub sign-in
+pnpm install
+pnpm exec prisma generate
+pnpm exec prisma migrate dev
+pnpm run start:dev
+```
+
+The server listens on **`PORT`** (defaults to **3000** in code if unset). Align this with your client’s `VITE_API_URL` and with `GITHUB_CALLBACK_URL` / `FRONTEND_OAUTH_URL` in `.env.example`.
+
+Useful Prisma commands:
+
+```bash
+pnpm exec prisma generate    # After schema changes
+pnpm exec prisma migrate dev  # Create & apply migrations
+pnpm exec prisma studio       # Database GUI
+```
+
+---
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `pnpm run start:dev` | Dev server (watch) |
+| `pnpm run start:prod` | Production (`node dist/src/main.js` after build) |
+| `pnpm run build` | Compile to `dist/` |
+| `pnpm run lint` | ESLint |
+| `pnpm run test` | Unit tests |
+| `pnpm run test:e2e` | E2E tests |
+
+---
+
+## Environment variables
+
+See **`.env.example`** for the full list. Highlights:
+
+- **`DATABASE_URL`** — MySQL connection string  
+- **`SECRET`** — JWT / crypto secret  
+- **`PORT`** — HTTP port  
+- **`BODY_LIMIT`** — Optional; overrides default large JSON limit  
+- **`GITHUB_*` / `FRONTEND_OAUTH_URL`** — GitHub OAuth and post-login redirect (web hash vs `zreq://` for desktop)
+
+---
+
+## Disclaimer — *vibe coding* project
+
+This API is built alongside an experimental client: schemas, endpoints, and auth flows may change quickly. It is **not** offered as a hardened, audited production platform. Run your own security review, tighten CORS and secrets for real deployments, and do not treat this as a compliance-ready backend without your own checks.
+
+---
+
+*Pairs with the ZReq client — sync, workspaces, and OAuth assume this service (or a compatible fork) is running.*

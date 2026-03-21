@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "generated"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  name         String
+  email        String        @unique
+  password     String?
+  githubId     String?       @unique
+  collections  Collection[]
+  environments Environment[]
+  workspaces   Workspace[]
+  collectionUpdatedBy  Collection[]          @relation("CollectionUpdatedBy")
+  environmentUpdatedBy Environment[]         @relation("EnvironmentUpdatedBy")
+  envVarUpdatedBy      EnvironmentVariable[] @relation("EnvVarUpdatedBy")
+  workspaceMemberships WorkspaceMember[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Workspace {
+  id           Int               @id @default(autoincrement())
+  name         String
+  userId       Int
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collections  Collection[]
+  members      WorkspaceMember[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([userId])
+}
+
+model WorkspaceMember {
+  id          Int       @id @default(autoincrement())
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Collection {
+  id              Int       @id @default(autoincrement())
+  name            String
+  items           Json
+  userId          Int
+  user            User      @relation(fields: [userId], references: [id])
+  workspaceId     Int
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  updatedByUserId Int?
+  updatedByUser   User?     @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([workspaceId])
+}
+
+model Environment {
+  id              Int                   @id @default(autoincrement())
+  name            String
+  userId          Int
+  user            User                  @relation(fields: [userId], references: [id])
+  variables       EnvironmentVariable[]
+  updatedByUserId Int?
+  updatedByUser   User?                 @relation("EnvironmentUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+}
+
+model EnvironmentVariable {
+  id              Int         @id @default(autoincrement())
+  key             String
+  value           String      @db.Text
+  enabled         Boolean     @default(true)
+  environmentId   Int
+  environment     Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  updatedByUserId Int?
+  updatedByUser   User?       @relation("EnvVarUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
