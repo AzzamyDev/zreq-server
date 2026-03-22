@@ -23,7 +23,27 @@ export class UsersService {
     }
 
     async findOne(id: number) {
-        return this.prismaService.user.findUniqueOrThrow({ where: { id } })
+        const u = await this.prismaService.user.findUniqueOrThrow({
+            where: { id },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                githubId: true,
+                createdAt: true,
+                updatedAt: true,
+                password: true
+            }
+        })
+        return {
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            githubId: u.githubId,
+            createdAt: u.createdAt,
+            updatedAt: u.updatedAt,
+            hasPassword: !!u.password
+        }
     }
 
     async update(id: number, updateUserDto: UpdateUserDto) {
@@ -46,16 +66,21 @@ export class UsersService {
         })
     }
 
-    async changePassword(id: number, currentPassword: string, newPassword: string) {
+    async changePassword(id: number, currentPassword: string | undefined, newPassword: string) {
         const user = await this.prismaService.user.findUnique({ where: { id } })
         if (!user) throw new NotFoundException()
-        if (!user.password) {
-            throw new BadRequestException('No password on file; sign in with GitHub or set one via recovery')
+        if (!newPassword || newPassword.length < 6) {
+            throw new BadRequestException('New password must be at least 6 characters')
         }
-        const valid = await bcrypt.compare(currentPassword, user.password)
-        if (!valid) throw new BadRequestException('Current password is incorrect')
+        if (user.password) {
+            if (!currentPassword) {
+                throw new BadRequestException('Current password is required')
+            }
+            const valid = await bcrypt.compare(currentPassword, user.password)
+            if (!valid) throw new BadRequestException('Current password is incorrect')
+        }
         const hashed = await bcrypt.hash(newPassword, 10)
         await this.prismaService.user.update({ where: { id }, data: { password: hashed } })
-        return { message: 'Password changed' }
+        return { message: 'Password changed', hasPassword: true }
     }
 }

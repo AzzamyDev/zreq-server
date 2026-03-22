@@ -39,7 +39,9 @@ export class UsersController {
     }
 
     @Get(':id')
-    async findOne(@Param('id') id: string) {
+    @UseGuards(JwtGuard)
+    async findOne(@Param('id') id: string, @Req() req: Request) {
+        if (req['user'].userId !== +id) throw new ForbiddenException()
         const result = await this.usersService.findOne(+id)
         return {
             message: 'Get user successfully',

@@ -15,7 +15,9 @@ import { LoginDto } from './dto/login.dto'
 
 type GithubEmailRow = { email: string; primary?: boolean; verified?: boolean }
 
-type OAuthBridgePayload = { access_token: string; user: { id: number; name: string; email: string } }
+type AuthUserPayload = { id: number; name: string; email: string; hasPassword: boolean }
+
+type OAuthBridgePayload = { access_token: string; user: AuthUserPayload }
 
 type BridgeRow = { exp: number; payload: OAuthBridgePayload }
 
@@ -68,7 +70,10 @@ export class AuthService {
         })
 
         const token = this.jwtService.sign({ sub: user.id, email: user.email })
-        return { access_token: token, user: { id: user.id, name: user.name, email: user.email } }
+        return {
+            access_token: token,
+            user: { id: user.id, name: user.name, email: user.email, hasPassword: true }
+        }
     }
 
     async login(dto: LoginDto) {
@@ -85,7 +90,15 @@ export class AuthService {
         if (!valid) throw new UnauthorizedException('Invalid credentials')
 
         const token = this.jwtService.sign({ sub: user.id, email: user.email })
-        return { access_token: token, user: { id: user.id, name: user.name, email: user.email } }
+        return {
+            access_token: token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                hasPassword: !!user.password
+            }
+        }
     }
 
     createGithubOAuthState(): string {
@@ -173,7 +186,12 @@ export class AuthService {
 
         const existingGh = await this.prismaService.user.findUnique({ where: { githubId } })
         if (existingGh) {
-            return this.issueAuthPayload(existingGh.id, existingGh.email, existingGh.name)
+            return this.issueAuthPayload(
+                existingGh.id,
+                existingGh.email,
+                existingGh.name,
+                !!existingGh.password
+            )
         }
 
         const byEmail = await this.prismaService.user.findUnique({ where: { email } })
@@ -182,7 +200,7 @@ export class AuthService {
                 where: { id: byEmail.id },
                 data: { githubId }
             })
-            return this.issueAuthPayload(linked.id, linked.email, linked.name)
+            return this.issueAuthPayload(linked.id, linked.email, linked.name, !!linked.password)
         }
 
         const created = await this.prismaService.user.create({
@@ -193,11 +211,11 @@ export class AuthService {
                 workspaces: { create: [{ name: 'Default' }] }
             }
         })
-        return this.issueAuthPayload(created.id, created.email, created.name)
+        return this.issueAuthPayload(created.id, created.email, created.name, false)
     }
 
-    private issueAuthPayload(id: number, email: string, name: string) {
+    private issueAuthPayload(id: number, email: string, name: string, hasPassword: boolean) {
         const token = this.jwtService.sign({ sub: id, email })
-        return { access_token: token, user: { id, name, email } }
+        return { access_token: token, user: { id, name, email, hasPassword } }
     }
 }
