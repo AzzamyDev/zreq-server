@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { randomBytes } from 'crypto'
 import { PrismaService } from 'src/config/prisma/prisma.service'
 import { generateOAuthClientId } from 'src/config/mcp/oauth-client-id.util'
@@ -55,25 +55,45 @@ export class McpOAuthClientsService {
             response_types: [...defaultResponseTypes],
             token_endpoint_auth_method
         })
-        const client_secret = randomBytes(32).toString('hex')
-        const clientSecretHash = hashClientSecret(client_secret)
-        const row = await this.prisma.oAuthClientStore.create({
-            data: {
-                clientId: client_id,
-                clientSecretHash,
-                clientSecret: null,
-                clientName: client_name,
-                purpose: dto.purpose?.trim() || null,
-                redirectUris: redirect_uris,
-                grantTypes: [...defaultGrantTypes],
-                responseTypes: [...defaultResponseTypes],
-                tokenEndpointAuthMethod: token_endpoint_auth_method,
-                userId
-            }
+
+        const usesSecret = token_endpoint_auth_method !== 'none'
+        const client_secret = usesSecret ? randomBytes(32).toString('hex') : null
+        const clientSecretHash = client_secret ? hashClientSecret(client_secret) : null
+
+        const existing = await this.prisma.oAuthClientStore.findUnique({
+            where: { clientId: client_id },
+            select: { id: true, userId: true }
         })
+
+        if (existing && existing.userId !== null && existing.userId !== userId) {
+            throw new ConflictException('A client with this configuration already exists and belongs to another user')
+        }
+
+        const sharedData = {
+            clientName: client_name,
+            purpose: dto.purpose?.trim() || null,
+            redirectUris: redirect_uris,
+            grantTypes: [...defaultGrantTypes],
+            responseTypes: [...defaultResponseTypes],
+            tokenEndpointAuthMethod: token_endpoint_auth_method,
+            userId
+        }
+
+        const row = existing
+            ? await this.prisma.oAuthClientStore.update({
+                  where: { id: existing.id },
+                  data: {
+                      ...sharedData,
+                      ...(usesSecret && { clientSecretHash, clientSecret: null })
+                  }
+              })
+            : await this.prisma.oAuthClientStore.create({
+                  data: { clientId: client_id, clientSecretHash, clientSecret: null, ...sharedData }
+              })
+
         return {
             ...this.toListItem(row),
-            client_secret
+            ...(client_secret ? { client_secret } : {})
         }
     }
 
