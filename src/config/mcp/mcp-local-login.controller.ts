@@ -11,6 +11,14 @@ export class McpLocalLoginController {
         const callbackPath = process.env.MCP_OAUTH_CALLBACK_PATH || '/mcp/oauth/callback'
         const next = typeof req.query.next === 'string' ? req.query.next : callbackPath
         const safeNext = next.startsWith('/') ? next : callbackPath
+        const githubConfigured = !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CALLBACK_URL)
+        const githubButton = githubConfigured
+            ? `<hr style="margin:20px 0;border:none;border-top:1px solid #eee" />
+  <a href="/mcp/oauth/github-start?next=${encodeURIComponent(safeNext)}"
+     style="display:block;text-align:center;padding:10px;border:1px solid #ccc;border-radius:8px;text-decoration:none;color:#111;font-weight:600">
+    Continue with GitHub
+  </a>`
+            : ''
 
         res.status(200).type('html').send(`<!DOCTYPE html>
 <html lang="en">
@@ -37,9 +45,31 @@ export class McpLocalLoginController {
     <label>Password</label>
     <input name="password" type="password" required />
     <button type="submit">Continue</button>
-  </form>
+  </form>${githubButton}
 </body>
 </html>`)
+    }
+
+    @Get('github-start')
+    githubMcpStart(@Req() req: Request, @Res() res: Response): void {
+        const clientId = process.env.GITHUB_CLIENT_ID
+        const callbackUrl = process.env.GITHUB_CALLBACK_URL
+        if (!clientId || !callbackUrl) {
+            res.status(500).type('html').send('<p>GitHub OAuth is not configured on this server.</p>')
+            return
+        }
+        const callbackPath = process.env.MCP_OAUTH_CALLBACK_PATH || '/mcp/oauth/callback'
+        const next = typeof req.query.next === 'string' ? req.query.next : callbackPath
+        const safeNext = next.startsWith('/') ? next : callbackPath
+        ;(req as any).session.mcpPendingNext = safeNext
+        const state = this.authService.createGithubOAuthState('mcp')
+        const params = new URLSearchParams({
+            client_id: clientId,
+            redirect_uri: callbackUrl,
+            scope: 'read:user user:email',
+            state
+        })
+        res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`)
     }
 
     @Post('local-login')
