@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { Module, OnModuleInit } from '@nestjs/common'
 import { McpAuthJwtGuard, McpAuthModule, McpModule, McpTransportType } from '@rekog/mcp-nest'
 import { CollectionsModule } from 'src/features/collections/collections.module'
 import { EnvironmentsModule } from 'src/features/environments/environments.module'
@@ -9,10 +9,11 @@ import { WorkspacesMcpTool } from './tools/workspaces.mcp-tool'
 import { UtilityMcpTool } from './tools/utility.mcp-tool'
 import { McpIdentityService } from './mcp-identity.service'
 import { LocalAccountOAuthProvider } from './custom-oauth.provider'
-import { PrismaService } from 'src/config/prisma/prisma.service'
 import { PrismaOAuthStore } from './prisma-oauth.store'
+import { deferredOAuthStore } from './deferred-oauth.store'
 import { AuthModule } from 'src/features/auth/auth.module'
 import { McpLocalLoginController } from './mcp-local-login.controller'
+import { PrismaModule } from 'src/config/prisma/prisma.module'
 
 const toValidMcpJwtSecret = () => {
     const raw =
@@ -22,10 +23,9 @@ const toValidMcpJwtSecret = () => {
     return raw.length >= 32 ? raw : `${raw}${'_'.repeat(32 - raw.length)}`
 }
 
-const mcpOAuthStore = new PrismaOAuthStore(new PrismaService())
-
 @Module({
     imports: [
+        PrismaModule,
         CollectionsModule,
         EnvironmentsModule,
         WorkspacesModule,
@@ -36,7 +36,7 @@ const mcpOAuthStore = new PrismaOAuthStore(new PrismaService())
             clientSecret: process.env.MCP_CLIENT_SECRET || 'zreq-mcp-client-secret',
             jwtSecret: toValidMcpJwtSecret(),
             enableRefreshTokens: process.env.MCP_ENABLE_REFRESH_TOKENS === 'true',
-            serverUrl: process.env.MCP_SERVER_URL || `http://localhost:${process.env.PORT || 3000}`,
+            serverUrl: process.env.MCP_SERVER_URL || `http://localhost:${process.env.PORT || 3300}`,
             resource: process.env.MCP_RESOURCE || 'zreq-mcp',
             apiPrefix: process.env.MCP_API_PREFIX || '',
             endpoints: {
@@ -70,7 +70,7 @@ const mcpOAuthStore = new PrismaOAuthStore(new PrismaService())
             },
             storeConfiguration: {
                 type: 'custom',
-                store: mcpOAuthStore
+                store: deferredOAuthStore
             }
         }),
         McpModule.forRoot({
@@ -88,6 +88,7 @@ const mcpOAuthStore = new PrismaOAuthStore(new PrismaService())
     ],
     controllers: [McpLocalLoginController],
     providers: [
+        PrismaOAuthStore,
         McpIdentityService,
         CollectionsMcpTool,
         EnvironmentsMcpTool,
@@ -95,4 +96,10 @@ const mcpOAuthStore = new PrismaOAuthStore(new PrismaService())
         UtilityMcpTool
     ]
 })
-export class ZreqMcpModule {}
+export class ZreqMcpModule implements OnModuleInit {
+    constructor(private readonly prismaOAuthStore: PrismaOAuthStore) {}
+
+    onModuleInit() {
+        deferredOAuthStore.setImpl(this.prismaOAuthStore)
+    }
+}

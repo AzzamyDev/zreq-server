@@ -10,6 +10,7 @@ import { EnvironmentsModule } from './features/environments/environments.module'
 import { WorkspacesModule } from './features/workspaces/workspaces.module'
 import { HealthController } from './health/health.controller'
 import { ZreqMcpModule } from './config/mcp/mcp.module'
+import { McpOAuthClientsModule } from './features/mcp-oauth-clients/mcp-oauth-clients.module'
 
 @Module({
     imports: [
@@ -20,6 +21,7 @@ import { ZreqMcpModule } from './config/mcp/mcp.module'
         WorkspacesModule,
         CollectionsModule,
         EnvironmentsModule,
+        McpOAuthClientsModule,
         ZreqMcpModule
     ],
     controllers: [HealthController],

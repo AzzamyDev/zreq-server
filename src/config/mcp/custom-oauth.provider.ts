@@ -91,10 +91,8 @@ export const LocalAccountOAuthProvider: OAuthProviderConfig = {
         defaultName: process.env.MCP_DEFAULT_USER_NAME || 'MCP User',
         callbackPath: process.env.MCP_OAUTH_CALLBACK_PATH || '/mcp/oauth/callback',
         loginPath: process.env.MCP_OAUTH_LOCAL_LOGIN_PATH || '/mcp/oauth/local-login',
-        allowDefaultIdentity:
-            process.env.MCP_ALLOW_DEFAULT_IDENTITY === 'true' || process.env.NODE_ENV !== 'production',
-        allowExternalIdentityHints:
-            process.env.MCP_ALLOW_EXTERNAL_IDENTITY_HINTS === 'true' || process.env.NODE_ENV !== 'production'
+        allowDefaultIdentity: process.env.MCP_ALLOW_DEFAULT_IDENTITY === 'true',
+        allowExternalIdentityHints: process.env.MCP_ALLOW_EXTERNAL_IDENTITY_HINTS === 'true'
     }),
     scope: ['profile:read'],
     profileMapper: (profile) => {

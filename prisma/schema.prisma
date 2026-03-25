@@ -26,6 +26,7 @@ model User {
   environmentUpdatedBy Environment[]         @relation("EnvironmentUpdatedBy")
   envVarUpdatedBy      EnvironmentVariable[] @relation("EnvVarUpdatedBy")
   workspaceMemberships WorkspaceMember[]
+  mcpOAuthClients      OAuthClientStore[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -107,6 +108,8 @@ model OAuthClientStore {
   clientSecret              String?
   clientSecretHash          String?
   clientName                String
+  /** User-facing label, e.g. "Cursor", "Claude" */
+  purpose                   String?
   clientDescription         String?
   logoUri                   String?
   clientUri                 String?
@@ -116,8 +119,12 @@ model OAuthClientStore {
   grantTypes                Json
   responseTypes             Json
   tokenEndpointAuthMethod   String
+  userId                    Int?
+  user                      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model OAuthAuthorizationCode {

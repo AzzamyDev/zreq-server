@@ -1,14 +1,17 @@
 import { createHash } from 'crypto'
+import { Injectable } from '@nestjs/common'
 import type { OAuthSession, OAuthUserProfile } from '@rekog/mcp-nest'
 import type { AuthorizationCode, IOAuthStore, OAuthClient } from '@rekog/mcp-nest'
 import type { Prisma } from '@prisma/generated/client'
 import { PrismaService } from 'src/config/prisma/prisma.service'
 import { hashClientSecret, isHashedClientSecret } from './oauth-security.util'
+import { generateOAuthClientId } from './oauth-client-id.util'
 
 const toStringArray = (value: unknown): string[] => (Array.isArray(value) ? value.map(String) : [])
 
+@Injectable()
 export class PrismaOAuthStore implements IOAuthStore {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(readonly prisma: PrismaService) {}
 
     async storeClient(client: OAuthClient): Promise<OAuthClient> {
         const hashedSecret = client.client_secret
@@ -16,6 +19,8 @@ export class PrismaOAuthStore implements IOAuthStore {
                 ? client.client_secret
                 : hashClientSecret(client.client_secret)
             : null
+
+        const redirectUris = [...new Set(client.redirect_uris)]
 
         const row = await this.prisma.oAuthClientStore.upsert({
             where: { clientId: client.client_id },
@@ -28,7 +33,7 @@ export class PrismaOAuthStore implements IOAuthStore {
                 clientUri: client.client_uri ?? null,
                 developerName: client.developer_name ?? null,
                 developerEmail: client.developer_email ?? null,
-                redirectUris: client.redirect_uris,
+                redirectUris,
                 grantTypes: client.grant_types,
                 responseTypes: client.response_types,
                 tokenEndpointAuthMethod: client.token_endpoint_auth_method
@@ -43,7 +48,7 @@ export class PrismaOAuthStore implements IOAuthStore {
                 clientUri: client.client_uri ?? null,
                 developerName: client.developer_name ?? null,
                 developerEmail: client.developer_email ?? null,
-                redirectUris: client.redirect_uris,
+                redirectUris,
                 grantTypes: client.grant_types,
                 responseTypes: client.response_types,
                 tokenEndpointAuthMethod: client.token_endpoint_auth_method
@@ -69,6 +74,10 @@ export class PrismaOAuthStore implements IOAuthStore {
     }
 
     async storeAuthCode(code: AuthorizationCode): Promise<void> {
+        if (process.env.MCP_RESTRICT_CLIENT_TO_OWNER === 'true') {
+            await this.enforceClientOwner(code)
+        }
+
         await this.prisma.oAuthAuthorizationCode.upsert({
             where: { code: code.code },
             update: {
@@ -97,6 +106,39 @@ export class PrismaOAuthStore implements IOAuthStore {
                 userProfileId: code.user_profile_id ?? null
             }
         })
+    }
+
+    /**
+     * When MCP_RESTRICT_CLIENT_TO_OWNER=true, rejects authorization if the
+     * OAuth client was created via CRUD (has a userId) and the authorizing user
+     * is not the owner. DCR clients (no userId) are unrestricted.
+     */
+    private async enforceClientOwner(code: AuthorizationCode): Promise<void> {
+        if (!code.user_profile_id) return
+
+        const client = await this.prisma.oAuthClientStore.findUnique({
+            where: { clientId: code.client_id },
+            select: { userId: true }
+        })
+        if (!client?.userId) return
+
+        const profileRow = await this.prisma.oAuthUserProfileStore.findUnique({
+            where: { profileId: code.user_profile_id },
+            select: { profile: true }
+        })
+        const email = (profileRow?.profile as { email?: string } | null)?.email?.trim().toLowerCase()
+        if (!email) return
+
+        const user = await this.prisma.user.findUnique({
+            where: { email },
+            select: { id: true }
+        })
+        if (!user || user.id !== client.userId) {
+            throw Object.assign(new Error('access_denied'), {
+                error: 'access_denied',
+                error_description: 'You are not the owner of this OAuth client.'
+            })
+        }
     }
 
     async getAuthCode(code: string): Promise<AuthorizationCode | undefined> {
@@ -176,15 +218,7 @@ export class PrismaOAuthStore implements IOAuthStore {
     }
 
     generateClientId(client: OAuthClient): string {
-        const normalized = JSON.stringify({
-            client_name: client.client_name,
-            redirect_uris: toStringArray(client.redirect_uris).sort(),
-            grant_types: toStringArray(client.grant_types).sort(),
-            response_types: toStringArray(client.response_types).sort(),
-            token_endpoint_auth_method: client.token_endpoint_auth_method
-        })
-        const hash = createHash('sha256').update(normalized).digest('hex')
-        return `${client.client_name.toLowerCase().replace(/[^a-z0-9]/g, '')}_${hash.slice(0, 16)}`
+        return generateOAuthClientId(client)
     }
 
     async upsertUserProfile(profile: OAuthUserProfile, provider: string): Promise<string> {
