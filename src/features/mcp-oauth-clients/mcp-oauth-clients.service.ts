@@ -65,8 +65,11 @@ export class McpOAuthClientsService {
             select: { id: true, userId: true }
         })
 
-        if (existing && existing.userId !== null && existing.userId !== userId) {
-            throw new ConflictException('A client with this configuration already exists and belongs to another user')
+        const existingOwner = existing?.userId != null ? Number(existing.userId) : null
+        if (existingOwner !== null && existingOwner !== Number(userId)) {
+            throw new ConflictException(
+                `client_id ${client_id} is already owned by another user. Delete it first or use a different client name / redirect URI.`
+            )
         }
 
         const sharedData = {
