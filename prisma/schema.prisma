@@ -14,32 +14,32 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  name         String
-  email        String        @unique
-  password     String?
-  githubId     String?       @unique
-  collections  Collection[]
-  environments Environment[]
-  workspaces   Workspace[]
+  id                   Int                   @id @default(autoincrement())
+  name                 String
+  email                String                @unique
+  password             String?
+  githubId             String?               @unique
+  collections          Collection[]
+  environments         Environment[]
+  workspaces           Workspace[]
   collectionUpdatedBy  Collection[]          @relation("CollectionUpdatedBy")
   environmentUpdatedBy Environment[]         @relation("EnvironmentUpdatedBy")
   envVarUpdatedBy      EnvironmentVariable[] @relation("EnvVarUpdatedBy")
   workspaceMemberships WorkspaceMember[]
   mcpOAuthClients      OAuthClientStore[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 }
 
 model Workspace {
-  id           Int               @id @default(autoincrement())
-  name         String
-  userId       Int
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  collections  Collection[]
-  members      WorkspaceMember[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id          Int               @id @default(autoincrement())
+  name        String
+  userId      Int
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collections Collection[]
+  members     WorkspaceMember[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   @@unique([userId, name])
   @@index([userId])
@@ -59,20 +59,56 @@ model WorkspaceMember {
 }
 
 model Collection {
-  id              Int       @id @default(autoincrement())
-  name            String
-  items           Json
-  userId          Int
-  user            User      @relation(fields: [userId], references: [id])
+  id              Int      @id @default(autoincrement())
+  parentId        Int?
+  sortOrder       Int      @default(0)
+  clientFolderId  String?
   workspaceId     Int
-  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  userId          Int
+  name            String
+  description     String?  @db.Text
+  auth            Json?
+  variables       Json?
   updatedByUserId Int?
-  updatedByUser   User?     @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedByUser User?               @relation("CollectionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  user          User                @relation(fields: [userId], references: [id])
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  parent        Collection?         @relation("ParentCollection", fields: [parentId], references: [id], onDelete: Cascade)
+  children      Collection[]        @relation("ParentCollection")
+  requests      CollectionRequest[]
 
   @@index([workspaceId])
+  @@index([parentId, sortOrder])
+  @@unique([workspaceId, clientFolderId])
   @@index([workspaceId, createdAt])
+}
+
+model CollectionRequest {
+  id           Int        @id @default(autoincrement())
+  folderId     Int
+  clientItemId String?
+  sortOrder    Int        @default(0)
+  name         String
+  method       String
+  url          String?
+  headers      Json?
+  params       Json?
+  body         Json?
+  auth         Json?
+  scripts      Json?
+  preRequest   String?
+  postResponse String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  folder       Collection @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
+  @@index([folderId, sortOrder])
+  @@index([folderId, createdAt])
+  @@index([folderId, updatedAt])
 }
 
 model Environment {
@@ -103,73 +139,75 @@ model EnvironmentVariable {
 }
 
 model OAuthClientStore {
-  id                        Int      @id @default(autoincrement())
-  clientId                  String   @unique
-  clientSecret              String?
-  clientSecretHash          String?
-  clientName                String
-  /** User-facing label, e.g. "Cursor", "Claude" */
-  purpose                   String?
-  clientDescription         String?
-  logoUri                   String?
-  clientUri                 String?
-  developerName             String?
-  developerEmail            String?
-  redirectUris              Json
-  grantTypes                Json
-  responseTypes             Json
-  tokenEndpointAuthMethod   String
-  userId                    Int?
-  user                      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  id                      Int      @id @default(autoincrement())
+  clientId                String   @unique
+  clientSecret            String?
+  clientSecretHash        String?
+  clientName              String
+  /**
+   * User-facing label, e.g. "Cursor", "Claude"
+   */
+  purpose                 String?
+  clientDescription       String?
+  logoUri                 String?
+  clientUri               String?
+  developerName           String?
+  developerEmail          String?
+  redirectUris            Json
+  grantTypes              Json
+  responseTypes           Json
+  tokenEndpointAuthMethod String
+  userId                  Int?
+  user                    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@index([userId])
 }
 
 model OAuthAuthorizationCode {
-  id                Int      @id @default(autoincrement())
-  code              String   @unique
-  userId            String
-  clientId          String
-  redirectUri       String
-  codeChallenge     String
+  id                  Int       @id @default(autoincrement())
+  code                String    @unique
+  userId              String
+  clientId            String
+  redirectUri         String
+  codeChallenge       String
   codeChallengeMethod String
-  resource          String?
-  scope             String?
-  expiresAt         BigInt
-  usedAt            DateTime?
-  userProfileId     String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  resource            String?
+  scope               String?
+  expiresAt           BigInt
+  usedAt              DateTime?
+  userProfileId       String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([clientId])
 }
 
 model OAuthSessionStore {
-  id                Int      @id @default(autoincrement())
-  sessionId         String   @unique
-  state             String
-  clientId          String?
-  redirectUri       String?
-  codeChallenge     String?
+  id                  Int      @id @default(autoincrement())
+  sessionId           String   @unique
+  state               String
+  clientId            String?
+  redirectUri         String?
+  codeChallenge       String?
   codeChallengeMethod String?
-  oauthState        String?
-  scope             String?
-  resource          String?
-  expiresAt         BigInt
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  oauthState          String?
+  scope               String?
+  resource            String?
+  expiresAt           BigInt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model OAuthUserProfileStore {
-  id            Int      @id @default(autoincrement())
-  profileId     String   @unique
-  provider      String
+  id             Int      @id @default(autoincrement())
+  profileId      String   @unique
+  provider       String
   providerUserId String
-  profile       Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  profile        Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([provider, providerUserId])
 }

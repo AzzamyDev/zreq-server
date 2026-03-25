@@ -42,16 +42,46 @@ CREATE TABLE `WorkspaceMember` (
 -- CreateTable
 CREATE TABLE `Collection` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `name` VARCHAR(191) NOT NULL,
-    `items` JSON NOT NULL,
-    `userId` INTEGER NOT NULL,
+    `parentId` INTEGER NULL,
+    `sortOrder` INTEGER NOT NULL DEFAULT 0,
+    `clientFolderId` VARCHAR(191) NULL,
     `workspaceId` INTEGER NOT NULL,
+    `userId` INTEGER NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
     `updatedByUserId` INTEGER NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
     INDEX `Collection_workspaceId_idx`(`workspaceId`),
+    INDEX `Collection_parentId_sortOrder_idx`(`parentId`, `sortOrder`),
     INDEX `Collection_workspaceId_createdAt_idx`(`workspaceId`, `createdAt`),
+    UNIQUE INDEX `Collection_workspaceId_clientFolderId_key`(`workspaceId`, `clientFolderId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `CollectionRequest` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `folderId` INTEGER NOT NULL,
+    `clientItemId` VARCHAR(191) NULL,
+    `sortOrder` INTEGER NOT NULL DEFAULT 0,
+    `name` VARCHAR(191) NOT NULL,
+    `method` VARCHAR(191) NOT NULL,
+    `url` VARCHAR(191) NULL,
+    `headers` JSON NULL,
+    `params` JSON NULL,
+    `body` JSON NULL,
+    `auth` JSON NULL,
+    `scripts` JSON NULL,
+    `preRequest` VARCHAR(191) NULL,
+    `postResponse` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `CollectionRequest_folderId_idx`(`folderId`),
+    INDEX `CollectionRequest_folderId_sortOrder_idx`(`folderId`, `sortOrder`),
+    INDEX `CollectionRequest_folderId_createdAt_idx`(`folderId`, `createdAt`),
+    INDEX `CollectionRequest_folderId_updatedAt_idx`(`folderId`, `updatedAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -175,13 +205,19 @@ ALTER TABLE `WorkspaceMember` ADD CONSTRAINT `WorkspaceMember_workspaceId_fkey` 
 ALTER TABLE `WorkspaceMember` ADD CONSTRAINT `WorkspaceMember_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `Collection` ADD CONSTRAINT `Collection_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `Collection` ADD CONSTRAINT `Collection_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Collection` ADD CONSTRAINT `Collection_workspaceId_fkey` FOREIGN KEY (`workspaceId`) REFERENCES `Workspace`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Collection` ADD CONSTRAINT `Collection_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `Collection` ADD CONSTRAINT `Collection_parentId_fkey` FOREIGN KEY (`parentId`) REFERENCES `Collection`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CollectionRequest` ADD CONSTRAINT `CollectionRequest_folderId_fkey` FOREIGN KEY (`folderId`) REFERENCES `Collection`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Environment` ADD CONSTRAINT `Environment_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
