@@ -52,12 +52,20 @@ export class CollectionsService {
         const where =
             wid !== undefined ? { workspaceId: wid } : { workspaceId: { in: accessible } }
 
-        const rows = await this.prismaService.collection.findMany({
+        // Narrow sort phase avoids MySQL 1038 (sort buffer) when `items` JSON is large per row.
+        const ordered = await this.prismaService.collection.findMany({
             where,
-            orderBy: { createdAt: 'asc' },
+            select: { id: true },
+            orderBy: { createdAt: 'asc' }
+        })
+        const ids = ordered.map((r) => r.id)
+        if (ids.length === 0) return []
+        const rows = await this.prismaService.collection.findMany({
+            where: { id: { in: ids } },
             include: { updatedByUser: { select: updatedBySelect } }
         })
-        return rows.map((r) => this.mapCollectionRow(r))
+        const byId = new Map(rows.map((r) => [r.id, r]))
+        return ids.map((id) => this.mapCollectionRow(byId.get(id)!))
     }
 
     async findOne(id: number, userId: number): Promise<CollectionApiRow> {

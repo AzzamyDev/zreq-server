@@ -71,6 +71,7 @@ model Collection {
   updatedAt       DateTime  @updatedAt
 
   @@index([workspaceId])
+  @@index([workspaceId, createdAt])
 }
 
 model Environment {
@@ -83,6 +84,8 @@ model Environment {
   updatedByUser   User?                 @relation("EnvironmentUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
+
+  @@index([userId, createdAt])
 }
 
 model EnvironmentVariable {

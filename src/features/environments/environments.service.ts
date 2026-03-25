@@ -64,12 +64,19 @@ export class EnvironmentsService {
     }
 
     async findAll(userId: number): Promise<EnvironmentApiRow[]> {
-        const rows = await this.prismaService.environment.findMany({
+        const ordered = await this.prismaService.environment.findMany({
             where: { userId },
-            include: this.envInclude(),
+            select: { id: true },
             orderBy: { createdAt: 'asc' }
         })
-        return rows.map((r) => this.mapEnvironmentRow(r as EnvWithRelations))
+        const ids = ordered.map((r) => r.id)
+        if (ids.length === 0) return []
+        const rows = await this.prismaService.environment.findMany({
+            where: { id: { in: ids } },
+            include: this.envInclude()
+        })
+        const byId = new Map(rows.map((r) => [r.id, r]))
+        return ids.map((id) => this.mapEnvironmentRow(byId.get(id)! as EnvWithRelations))
     }
 
     async findOne(id: number, userId: number): Promise<EnvironmentApiRow> {
