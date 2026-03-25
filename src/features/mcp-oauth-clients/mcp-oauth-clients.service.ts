@@ -48,13 +48,16 @@ export class McpOAuthClientsService {
         const client_name = dto.client_name.trim()
         const redirect_uris = [...new Set(dto.redirect_uris.map((u) => u.trim()).filter(Boolean))]
         const token_endpoint_auth_method = dto.token_endpoint_auth_method
-        const client_id = generateOAuthClientId({
-            client_name,
-            redirect_uris,
-            grant_types: [...defaultGrantTypes],
-            response_types: [...defaultResponseTypes],
-            token_endpoint_auth_method
-        })
+        const client_id = generateOAuthClientId(
+            {
+                client_name,
+                redirect_uris,
+                grant_types: [...defaultGrantTypes],
+                response_types: [...defaultResponseTypes],
+                token_endpoint_auth_method
+            },
+            userId
+        )
 
         const usesSecret = token_endpoint_auth_method !== 'none'
         const client_secret = usesSecret ? randomBytes(32).toString('hex') : null

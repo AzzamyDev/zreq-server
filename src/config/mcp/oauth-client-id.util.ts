@@ -7,9 +7,13 @@ export function generateOAuthClientId(
     client: Pick<
         OAuthClient,
         'client_name' | 'redirect_uris' | 'grant_types' | 'response_types' | 'token_endpoint_auth_method'
-    >
+    >,
+    /** When provided (CRUD path), userId is included in the hash so each user
+     *  gets a distinct client_id for the same configuration. */
+    userId?: number
 ): string {
     const normalized = JSON.stringify({
+        ...(userId != null && { user_id: userId }),
         client_name: client.client_name,
         redirect_uris: toStringArray(client.redirect_uris).sort(),
         grant_types: toStringArray(client.grant_types).sort(),
