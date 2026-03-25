@@ -141,7 +141,20 @@ export class AuthController {
             return
         }
         try {
+            const { ctx } = this.authService.verifyGithubOAuthState(state)
             const result = await this.authService.completeGithubOAuth(code, state)
+
+            if (ctx === 'mcp') {
+                ;(req as any).session.mcpUserEmail = result.user.email
+                const mcpNext = (req as any).session.mcpPendingNext as string | undefined
+                if ((req as any).session.mcpPendingNext) delete (req as any).session.mcpPendingNext
+                const callbackPath = process.env.MCP_OAUTH_CALLBACK_PATH || '/mcp/oauth/callback'
+                const safeNext =
+                    typeof mcpNext === 'string' && mcpNext.startsWith('/') ? mcpNext : callbackPath
+                sendHtmlRedirect(res, safeNext)
+                return
+            }
+
             const bridge = this.authService.createOAuthBridge(result)
             const fragment = new URLSearchParams({
                 code: bridge,

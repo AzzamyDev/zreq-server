@@ -108,5 +108,16 @@ async function bootstrap() {
     app.useGlobalFilters(new NotFoundExceptionFilter())
     // app.setGlobalPrefix('api')
     await app.listen(PORT)
+
+    const MCP_PORT = process.env.MCP_PORT ? Number(process.env.MCP_PORT) : null
+    if (MCP_PORT && MCP_PORT !== Number(PORT)) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const http = require('http') as typeof import('http')
+        const expressApp = app.getHttpAdapter().getInstance()
+        const mcpServer = http.createServer(expressApp)
+        mcpServer.listen(MCP_PORT, () => {
+            console.log(`[MCP] Secondary listener on port ${MCP_PORT}`)
+        })
+    }
 }
 bootstrap()

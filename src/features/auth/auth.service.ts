@@ -101,14 +101,15 @@ export class AuthService {
         }
     }
 
-    createGithubOAuthState(): string {
-        return this.jwtService.sign({ p: 'gh_oauth' }, { expiresIn: '10m' })
+    createGithubOAuthState(ctx?: string): string {
+        return this.jwtService.sign({ p: 'gh_oauth', ...(ctx ? { ctx } : {}) }, { expiresIn: '10m' })
     }
 
-    verifyGithubOAuthState(state: string) {
+    verifyGithubOAuthState(state: string): { ctx?: string } {
         try {
-            const payload = this.jwtService.verify<{ p?: string }>(state)
+            const payload = this.jwtService.verify<{ p?: string; ctx?: string }>(state)
             if (payload.p !== 'gh_oauth') throw new Error('bad purpose')
+            return { ctx: payload.ctx }
         } catch {
             throw new BadRequestException('Invalid or expired OAuth state')
         }
