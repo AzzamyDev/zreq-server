@@ -8,6 +8,7 @@ import { ConfigModule } from '@nestjs/config'
 @Module({
     imports: [PrismaModule, AuthModule, ConfigModule],
     controllers: [EnvironmentsController],
-    providers: [EnvironmentsService]
+    providers: [EnvironmentsService],
+    exports: [EnvironmentsService]
 })
 export class EnvironmentsModule {}

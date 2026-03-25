@@ -61,8 +61,10 @@ export class WorkspacesService {
     }
 
     async create(userId: number, dto: CreateWorkspaceDto) {
-        return this.prisma.workspace.create({
-            data: { name: dto.name, userId }
+        return this.prisma.workspace.upsert({
+            where: { userId_name: { userId, name: dto.name } },
+            update: {},
+            create: { name: dto.name, userId }
         })
     }
 

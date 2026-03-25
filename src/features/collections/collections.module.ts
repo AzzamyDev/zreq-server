@@ -9,6 +9,7 @@ import { WorkspacesModule } from '../workspaces/workspaces.module'
 @Module({
     imports: [PrismaModule, AuthModule, ConfigModule, WorkspacesModule],
     controllers: [CollectionsController],
-    providers: [CollectionsService]
+    providers: [CollectionsService],
+    exports: [CollectionsService]
 })
 export class CollectionsModule {}

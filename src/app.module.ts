@@ -9,6 +9,7 @@ import { CollectionsModule } from './features/collections/collections.module'
 import { EnvironmentsModule } from './features/environments/environments.module'
 import { WorkspacesModule } from './features/workspaces/workspaces.module'
 import { HealthController } from './health/health.controller'
+import { ZreqMcpModule } from './config/mcp/mcp.module'
 
 @Module({
     imports: [
@@ -18,7 +19,8 @@ import { HealthController } from './health/health.controller'
         AuthModule,
         WorkspacesModule,
         CollectionsModule,
-        EnvironmentsModule
+        EnvironmentsModule,
+        ZreqMcpModule
     ],
     controllers: [HealthController],
     providers: [

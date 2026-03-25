@@ -139,6 +139,58 @@ See **`.env.example`** for the full list. Highlights:
 
 ---
 
+## MCP Server (AI Agent)
+
+This backend now includes an MCP server built with `@rekog/mcp-nest` using:
+
+- **Transport**: Streamable HTTP (`/mcp`) — recommended for Claude custom connector
+- **Auth**: OAuth 2.1 Authorization Code + PKCE (internal/local provider)
+
+### MCP endpoints
+
+- **MCP (Streamable HTTP)**: `/mcp`
+- **Authorize**: `GET /mcp/oauth/authorize`
+- **Callback**: `GET /mcp/oauth/callback`
+- **Token**: `POST /mcp/oauth/token`
+- **Dynamic client registration**: `POST /mcp/oauth/register`
+- **Well-known metadata** endpoints are also exposed by MCP-Nest.
+
+### MCP scopes
+
+- `profile:read`
+- `collections:read`, `collections:write`
+- `environments:read`, `environments:write`
+- `workspaces:read`, `workspaces:write`
+
+### MCP tools
+
+- `collections_*`: list/get/create/update/delete collections
+- `environments_*`: list/get/create/update/delete environments
+- `workspaces_*`: list/create/update/delete workspace + members management
+- `system_health`, `auth_whoami`, `workspaces_accessible_ids`
+
+### Required env vars for MCP
+
+Set these in `.env` (see `.env.example`):
+
+- `MCP_SERVER_URL` (public backend URL used in OAuth metadata)
+- `MCP_*_ENDPOINT` and `MCP_OAUTH_*_PATH` (optional path overrides)
+- `MCP_GITHUB_CLIENT_ID` and `MCP_GITHUB_CLIENT_SECRET` (or fallback to `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`)
+- `MCP_JWT_SECRET` (or fallback to `SECRET`)
+
+### Internal OAuth setup reminder
+
+Set these vars to identify MCP user for OAuth login:
+
+- `MCP_DEFAULT_USER_EMAIL` (required for auto-login flow)
+- `MCP_DEFAULT_USER_NAME` (optional display name)
+
+Optional per-request override during authorize step:
+
+- `x-mcp-user-email` header or `login_hint` query parameter
+
+---
+
 ## Disclaimer — *vibe coding* project
 
 This API is built alongside an experimental client: schemas, endpoints, and auth flows may change quickly. It is **not** offered as a hardened, audited production platform. Run your own security review, tighten CORS and secrets for real deployments, and do not treat this as a compliance-ready backend without your own checks.

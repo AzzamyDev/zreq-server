@@ -40,6 +40,7 @@ model Workspace {
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
+  @@unique([userId, name])
   @@index([userId])
 }
 
@@ -95,4 +96,70 @@ model EnvironmentVariable {
   updatedByUser   User?       @relation("EnvVarUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+}
+
+model OAuthClientStore {
+  id                        Int      @id @default(autoincrement())
+  clientId                  String   @unique
+  clientSecret              String?
+  clientSecretHash          String?
+  clientName                String
+  clientDescription         String?
+  logoUri                   String?
+  clientUri                 String?
+  developerName             String?
+  developerEmail            String?
+  redirectUris              Json
+  grantTypes                Json
+  responseTypes             Json
+  tokenEndpointAuthMethod   String
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model OAuthAuthorizationCode {
+  id                Int      @id @default(autoincrement())
+  code              String   @unique
+  userId            String
+  clientId          String
+  redirectUri       String
+  codeChallenge     String
+  codeChallengeMethod String
+  resource          String?
+  scope             String?
+  expiresAt         BigInt
+  usedAt            DateTime?
+  userProfileId     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+model OAuthSessionStore {
+  id                Int      @id @default(autoincrement())
+  sessionId         String   @unique
+  state             String
+  clientId          String?
+  redirectUri       String?
+  codeChallenge     String?
+  codeChallengeMethod String?
+  oauthState        String?
+  scope             String?
+  resource          String?
+  expiresAt         BigInt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model OAuthUserProfileStore {
+  id            Int      @id @default(autoincrement())
+  profileId     String   @unique
+  provider      String
+  providerUserId String
+  profile       Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([provider, providerUserId])
 }
