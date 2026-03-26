@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, HttpException, HttpStatus } from '@nestjs/common'
+import { Injectable, ForbiddenException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common'
 import type { Environment, EnvironmentVariable, User } from '@prisma/generated/client'
 import { PrismaService } from 'src/config/prisma/prisma.service'
 import { CreateEnvironmentDto } from './dto/create-environment.dto'
@@ -89,6 +89,12 @@ export class EnvironmentsService {
     }
 
     async create(dto: CreateEnvironmentDto, userId: number): Promise<EnvironmentApiRow> {
+        const userExists = await this.prismaService.user.findUnique({
+            where: { id: userId },
+            select: { id: true }
+        })
+        if (!userExists) throw new UnauthorizedException('Invalid user for this token')
+
         const created = await this.prismaService.environment.create({
             data: {
                 name: dto.name,
