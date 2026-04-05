@@ -1,4 +1,11 @@
-import { Injectable, ForbiddenException, BadRequestException, HttpException, HttpStatus } from '@nestjs/common'
+import {
+    Injectable,
+    ForbiddenException,
+    BadRequestException,
+    HttpException,
+    HttpStatus,
+    NotFoundException,
+} from '@nestjs/common'
 import { Prisma } from '@prisma/generated/client'
 import type { Collection as CollectionRow, CollectionRequest as CollectionRequestRow, User } from '@prisma/generated/client'
 import { PrismaService } from 'src/config/prisma/prisma.service'
@@ -443,7 +450,10 @@ export class CollectionsService {
     }
 
     async remove(id: number, userId: number) {
-        const col = await this.prismaService.collection.findUniqueOrThrow({ where: { id } })
+        const col = await this.prismaService.collection.findUnique({ where: { id } })
+        if (!col) {
+            throw new NotFoundException('Collection not found')
+        }
         await this.workspacesService.assertWorkspaceAccess(userId, col.workspaceId)
         await this.prismaService.collection.delete({ where: { id } })
     }
