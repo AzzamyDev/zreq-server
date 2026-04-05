@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common'
 import type { Environment, EnvironmentVariable, User } from '@prisma/generated/client'
 import { PrismaService } from 'src/config/prisma/prisma.service'
+import { WorkspacesService } from 'src/features/workspaces/workspaces.service'
 import { CreateEnvironmentDto } from './dto/create-environment.dto'
 import { UpdateEnvironmentDto } from './dto/update-environment.dto'
 
@@ -10,7 +11,7 @@ type EditorUser = Pick<User, 'id' | 'name' | 'email'>
 export type EnvironmentApiRow = {
     id: number
     name: string
-    userId: number
+    workspaceId: number
     createdAt: string
     updatedAt: string
     lastUpdatedBy?: EditorUser
@@ -33,13 +34,16 @@ type EnvWithRelations = Environment & {
 
 @Injectable()
 export class EnvironmentsService {
-    constructor(readonly prismaService: PrismaService) {}
+    constructor(
+        readonly prismaService: PrismaService,
+        readonly workspacesService: WorkspacesService
+    ) {}
 
     private mapEnvironmentRow(row: EnvWithRelations): EnvironmentApiRow {
         return {
             id: row.id,
             name: row.name,
-            userId: row.userId,
+            workspaceId: row.workspaceId,
             createdAt: row.createdAt.toISOString(),
             updatedAt: row.updatedAt.toISOString(),
             ...(row.updatedByUser && { lastUpdatedBy: row.updatedByUser }),
@@ -63,9 +67,19 @@ export class EnvironmentsService {
         } as const
     }
 
-    async findAll(userId: number): Promise<EnvironmentApiRow[]> {
+    async findAll(userId: number, workspaceId?: number): Promise<EnvironmentApiRow[]> {
+        const accessible = await this.workspacesService.getAccessibleWorkspaceIds(userId)
+        if (accessible.length === 0) return []
+
+        const wid =
+            workspaceId !== undefined && !Number.isNaN(workspaceId) ? workspaceId : undefined
+        if (wid !== undefined && !accessible.includes(wid)) throw new ForbiddenException()
+
+        const where =
+            wid !== undefined ? { workspaceId: wid } : { workspaceId: { in: accessible } }
+
         const ordered = await this.prismaService.environment.findMany({
-            where: { userId },
+            where,
             select: { id: true },
             orderBy: { createdAt: 'asc' }
         })
@@ -84,7 +98,7 @@ export class EnvironmentsService {
             where: { id },
             include: this.envInclude()
         })
-        if (env.userId !== userId) throw new ForbiddenException()
+        await this.workspacesService.assertWorkspaceAccess(userId, env.workspaceId)
         return this.mapEnvironmentRow(env as EnvWithRelations)
     }
 
@@ -95,10 +109,12 @@ export class EnvironmentsService {
         })
         if (!userExists) throw new UnauthorizedException('Invalid user for this token')
 
+        await this.workspacesService.assertWorkspaceAccess(userId, dto.workspaceId)
+
         const created = await this.prismaService.environment.create({
             data: {
                 name: dto.name,
-                userId,
+                workspaceId: dto.workspaceId,
                 updatedByUserId: userId,
                 variables: {
                     create: (dto.variables ?? []).map((v) => ({
@@ -116,7 +132,7 @@ export class EnvironmentsService {
 
     async update(id: number, dto: UpdateEnvironmentDto, userId: number) {
         const env = await this.prismaService.environment.findUniqueOrThrow({ where: { id } })
-        if (env.userId !== userId) throw new ForbiddenException()
+        await this.workspacesService.assertWorkspaceAccess(userId, env.workspaceId)
         const raw = dto as UpdateEnvironmentDto & { expectedUpdatedAt?: string; force?: boolean }
         const { expectedUpdatedAt, force, name, variables } = raw
         if (expectedUpdatedAt && !force) {
@@ -169,7 +185,7 @@ export class EnvironmentsService {
 
     async remove(id: number, userId: number) {
         const env = await this.prismaService.environment.findUniqueOrThrow({ where: { id } })
-        if (env.userId !== userId) throw new ForbiddenException()
+        await this.workspacesService.assertWorkspaceAccess(userId, env.workspaceId)
         await this.prismaService.environment.delete({ where: { id } })
     }
 }

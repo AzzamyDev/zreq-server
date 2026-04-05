@@ -123,7 +123,11 @@ export class McpOAuthClientsService {
                 ...(dto.client_name !== undefined && { clientName: client_name }),
                 ...(dto.redirect_uris !== undefined && { redirectUris: redirect_uris }),
                 ...(dto.token_endpoint_auth_method !== undefined && {
-                    tokenEndpointAuthMethod: token_endpoint_auth_method
+                    tokenEndpointAuthMethod: token_endpoint_auth_method,
+                    ...(token_endpoint_auth_method === 'none' && {
+                        clientSecretHash: null,
+                        clientSecret: null
+                    })
                 }),
                 ...(dto.purpose !== undefined && {
                     purpose: dto.purpose === null || dto.purpose === '' ? null : dto.purpose.trim()

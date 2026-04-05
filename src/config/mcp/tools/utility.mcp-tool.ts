@@ -71,7 +71,7 @@ export class UtilityMcpTool {
     @Tool({
         name: 'workspace_get_context',
         description:
-            'Get full context for a workspace: workspace details, its collections, and all user environments. ' +
+            'Get full context for a workspace: workspace details, its collections, and environments in that workspace. ' +
             'Call this after workspaces_list to orient before working within a specific workspace.',
         parameters: z.object({ workspaceId: z.number().int().positive() })
     })
@@ -84,7 +84,7 @@ export class UtilityMcpTool {
         const [allWorkspaces, collections, environments] = await Promise.all([
             this.workspacesService.findAll(userId),
             this.collectionsService.findAll(userId, args.workspaceId),
-            this.environmentsService.findAll(userId)
+            this.environmentsService.findAll(userId, args.workspaceId)
         ])
         const workspace = allWorkspaces.find((w) => w.id === args.workspaceId)
         if (!workspace) {

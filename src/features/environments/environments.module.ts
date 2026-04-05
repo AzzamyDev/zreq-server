@@ -4,9 +4,10 @@ import { EnvironmentsService } from './environments.service'
 import { PrismaModule } from 'src/config/prisma/prisma.module'
 import { AuthModule } from '../auth/auth.module'
 import { ConfigModule } from '@nestjs/config'
+import { WorkspacesModule } from '../workspaces/workspaces.module'
 
 @Module({
-    imports: [PrismaModule, AuthModule, ConfigModule],
+    imports: [PrismaModule, AuthModule, ConfigModule, WorkspacesModule],
     controllers: [EnvironmentsController],
     providers: [EnvironmentsService],
     exports: [EnvironmentsService]

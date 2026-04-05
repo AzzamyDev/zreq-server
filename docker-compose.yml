@@ -29,6 +29,9 @@ services:
         restart: unless-stopped
         networks:
             - zreq_net
+        # Load host .env into the container (MCP_*, SECRET, GitHub, etc.). Overrides below win.
+        env_file:
+            - .env
         ports:
             - '${PORT:-3030}:3000'
         environment:

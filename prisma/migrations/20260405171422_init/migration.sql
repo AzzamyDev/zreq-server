@@ -48,6 +48,9 @@ CREATE TABLE `Collection` (
     `workspaceId` INTEGER NOT NULL,
     `userId` INTEGER NOT NULL,
     `name` VARCHAR(191) NOT NULL,
+    `description` TEXT NULL,
+    `auth` JSON NULL,
+    `variables` JSON NULL,
     `updatedByUserId` INTEGER NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
@@ -89,12 +92,12 @@ CREATE TABLE `CollectionRequest` (
 CREATE TABLE `Environment` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
-    `userId` INTEGER NOT NULL,
+    `workspaceId` INTEGER NOT NULL,
     `updatedByUserId` INTEGER NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Environment_userId_createdAt_idx`(`userId`, `createdAt`),
+    INDEX `Environment_workspaceId_createdAt_idx`(`workspaceId`, `createdAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -220,7 +223,7 @@ ALTER TABLE `Collection` ADD CONSTRAINT `Collection_parentId_fkey` FOREIGN KEY (
 ALTER TABLE `CollectionRequest` ADD CONSTRAINT `CollectionRequest_folderId_fkey` FOREIGN KEY (`folderId`) REFERENCES `Collection`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Environment` ADD CONSTRAINT `Environment_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `Environment` ADD CONSTRAINT `Environment_workspaceId_fkey` FOREIGN KEY (`workspaceId`) REFERENCES `Workspace`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Environment` ADD CONSTRAINT `Environment_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

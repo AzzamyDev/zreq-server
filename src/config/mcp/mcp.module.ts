@@ -35,6 +35,8 @@ const toValidMcpJwtSecret = () => {
             clientId: process.env.MCP_CLIENT_ID || 'zreq-mcp-client',
             clientSecret: process.env.MCP_CLIENT_SECRET || 'zreq-mcp-client-secret',
             jwtSecret: toValidMcpJwtSecret(),
+            jwtAccessTokenExpiresIn: process.env.MCP_JWT_ACCESS_EXPIRES_IN || '1d',
+            jwtRefreshTokenExpiresIn: process.env.MCP_JWT_REFRESH_EXPIRES_IN || '30d',
             enableRefreshTokens: process.env.MCP_ENABLE_REFRESH_TOKENS === 'true',
             serverUrl: process.env.MCP_SERVER_URL || `http://localhost:${process.env.PORT || 3300}`,
             resource: process.env.MCP_RESOURCE || 'zreq-mcp',

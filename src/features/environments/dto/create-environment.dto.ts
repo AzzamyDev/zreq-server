@@ -9,6 +9,7 @@ const VariableSchema = z.object({
 
 export const CreateEnvironmentSchema = z.object({
     name: z.string().min(1),
+    workspaceId: z.number().int().positive(),
     variables: z.array(VariableSchema).optional().default([])
 })
 

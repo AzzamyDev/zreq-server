@@ -22,12 +22,14 @@ export class EnvironmentsMcpTool {
     @ToolScopes(['environments:read'])
     @Tool({
         name: 'environments_list',
-        description: 'List environments',
-        parameters: z.object({})
+        description: 'List environments in a workspace (or all accessible workspaces if workspaceId omitted)',
+        parameters: z.object({
+            workspaceId: z.number().int().positive().optional()
+        })
     })
-    async list(_args: Record<string, never>, _context: unknown, req?: McpRequestWithUser) {
+    async list(args: { workspaceId?: number }, _context: unknown, req?: McpRequestWithUser) {
         const userId = await this.identityService.resolveUserId(req)
-        const data = await this.environmentsService.findAll(userId)
+        const data = await this.environmentsService.findAll(userId, args.workspaceId)
         return { ok: true, message: 'Environments fetched successfully', data }
     }
 
@@ -46,20 +48,26 @@ export class EnvironmentsMcpTool {
     @ToolScopes(['environments:write'])
     @Tool({
         name: 'environments_create',
-        description: 'Create environment',
+        description: 'Create environment in a workspace',
         parameters: z.object({
+            workspaceId: z.number().int().positive(),
             name: z.string().min(1),
             variables: z.array(envVarSchema).optional()
         })
     })
     async create(
-        args: { name: string; variables?: Array<{ key: string; value: string; enabled?: boolean }> },
+        args: {
+            workspaceId: number
+            name: string
+            variables?: Array<{ key: string; value: string; enabled?: boolean }>
+        },
         _context: unknown,
         req?: McpRequestWithUser
     ) {
         const userId = await this.identityService.resolveUserId(req)
         const data = await this.environmentsService.create(
             {
+                workspaceId: args.workspaceId,
                 name: args.name,
                 variables: (args.variables ?? []).map((v) => ({
                     key: v.key,

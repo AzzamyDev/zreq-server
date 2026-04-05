@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { PrismaModule } from './config/prisma/prisma.module'
 import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
@@ -11,6 +11,7 @@ import { WorkspacesModule } from './features/workspaces/workspaces.module'
 import { HealthController } from './health/health.controller'
 import { ZreqMcpModule } from './config/mcp/mcp.module'
 import { McpOAuthClientsModule } from './features/mcp-oauth-clients/mcp-oauth-clients.module'
+import { attachDynamicOAuthWellKnownMetadata } from './config/mcp/mcp-oauth-express.middleware'
 
 @Module({
     imports: [
@@ -30,4 +31,8 @@ import { McpOAuthClientsModule } from './features/mcp-oauth-clients/mcp-oauth-cl
         { provide: APP_INTERCEPTOR, useClass: ZodSerializerInterceptor }
     ]
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+    configure(consumer: MiddlewareConsumer): void {
+        consumer.apply(attachDynamicOAuthWellKnownMetadata).forRoutes({ path: '*path', method: RequestMethod.ALL })
+    }
+}

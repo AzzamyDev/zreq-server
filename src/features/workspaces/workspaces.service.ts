@@ -5,7 +5,8 @@ import {
     HttpException,
     HttpStatus,
     NotFoundException,
-    BadRequestException
+    BadRequestException,
+    UnauthorizedException
 } from '@nestjs/common'
 import { PrismaService } from 'src/config/prisma/prisma.service'
 import { CreateWorkspaceDto } from './dto/create-workspace.dto'
@@ -61,6 +62,10 @@ export class WorkspacesService {
     }
 
     async create(userId: number, dto: CreateWorkspaceDto) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+        if (!user) {
+            throw new UnauthorizedException('User not found for this token. Sign in again.')
+        }
         return this.prisma.workspace.upsert({
             where: { userId_name: { userId, name: dto.name } },
             update: {},

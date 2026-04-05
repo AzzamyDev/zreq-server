@@ -61,7 +61,6 @@ export class UsersService {
         await this.prismaService.$transaction(async (tx) => {
             await tx.collection.deleteMany({ where: { userId: id } })
             await tx.workspace.deleteMany({ where: { userId: id } })
-            await tx.environment.deleteMany({ where: { userId: id } })
             await tx.user.delete({ where: { id } })
         })
     }

@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config'
 import { AuthService } from './auth.service'
 import { RegisterDto } from './dto/register.dto'
 import { LoginDto } from './dto/login.dto'
+import { sendHtmlRedirect } from 'src/config/oauth-html-redirect.util'
 
 /**
  * Web SPA: hash (works with static hosting).
@@ -29,45 +30,12 @@ function buildOauthFrontendRedirect(frontendBase: string | undefined, fragment: 
     return `${base}${sep}${fragment}`
 }
 
-const CUSTOM_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i
-
 function publicApiOrigin(req: Request): string {
     const xfProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim()
     const xfHost = req.get('x-forwarded-host')?.split(',')[0]?.trim()
     const host = xfHost || req.get('host') || 'localhost'
     const proto = xfProto || (req.secure ? 'https' : 'http')
     return `${proto}://${host}`
-}
-
-/**
- * HTML redirect: survives ngrok/proxies; custom schemes get a visible fallback (browsers often show a blank page until the app opens).
- */
-function sendHtmlRedirect(res: Response, targetUrl: string): void {
-    const u = JSON.stringify(targetUrl)
-    const isCustom = CUSTOM_SCHEME_RE.test(targetUrl) && !/^https?:/i.test(targetUrl)
-    if (isCustom) {
-        res.status(200)
-            .type('html')
-            .send(
-                `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ZReq — return to app</title>` +
-                    `<style>body{font-family:system-ui,sans-serif;padding:2rem;max-width:26rem;margin:auto;line-height:1.5;color:#111}` +
-                    `a{display:inline-block;margin-top:1rem;padding:.6rem 1rem;background:#111;color:#fff;border-radius:8px;text-decoration:none;font-weight:600}</style></head><body>` +
-                    `<h1>Sign-in complete</h1><p id="m">Trying to open ZReq…</p>` +
-                    `<p><a id="L" href=${u}>Open ZReq</a></p>` +
-                    `<p style="font-size:.875rem;color:#555">If the window stays blank or the app does not open, tap the button above (or allow the <code>zreq</code> link).</p>` +
-                    `<script>var t=${u};function go(){try{location.href=t}catch(e){}}go();setTimeout(function(){document.getElementById("m").textContent="App did not open? Use the button above.";},1500);</script>` +
-                    `</body></html>`
-            )
-        return
-    }
-    res.status(200)
-        .type('html')
-        .send(
-            `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirect</title></head><body>` +
-                `<script>location.replace(${u})</script>` +
-                `<p>Redirecting… If this page stays blank, <a href=${u}>continue</a>.</p>` +
-                `</body></html>`
-        )
 }
 
 @Controller('auth')

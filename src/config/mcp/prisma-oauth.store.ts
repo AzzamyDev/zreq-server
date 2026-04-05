@@ -9,6 +9,8 @@ import { generateOAuthClientId } from './oauth-client-id.util'
 
 const toStringArray = (value: unknown): string[] => (Array.isArray(value) ? value.map(String) : [])
 
+const defaultMcpResource = (): string => process.env.MCP_RESOURCE?.trim() || 'zreq-mcp'
+
 @Injectable()
 export class PrismaOAuthStore implements IOAuthStore {
     constructor(readonly prisma: PrismaService) {}
@@ -78,6 +80,7 @@ export class PrismaOAuthStore implements IOAuthStore {
             await this.enforceClientOwner(code)
         }
 
+        const resource = code.resource?.trim() || defaultMcpResource()
         await this.prisma.oAuthAuthorizationCode.upsert({
             where: { code: code.code },
             update: {
@@ -86,7 +89,7 @@ export class PrismaOAuthStore implements IOAuthStore {
                 redirectUri: code.redirect_uri,
                 codeChallenge: code.code_challenge,
                 codeChallengeMethod: code.code_challenge_method,
-                resource: code.resource ?? null,
+                resource,
                 scope: code.scope ?? null,
                 expiresAt: BigInt(code.expires_at),
                 usedAt: code.used_at ?? null,
@@ -99,7 +102,7 @@ export class PrismaOAuthStore implements IOAuthStore {
                 redirectUri: code.redirect_uri,
                 codeChallenge: code.code_challenge,
                 codeChallengeMethod: code.code_challenge_method,
-                resource: code.resource ?? null,
+                resource,
                 scope: code.scope ?? null,
                 expiresAt: BigInt(code.expires_at),
                 usedAt: code.used_at ?? null,
@@ -151,7 +154,7 @@ export class PrismaOAuthStore implements IOAuthStore {
             redirect_uri: row.redirectUri,
             code_challenge: row.codeChallenge,
             code_challenge_method: row.codeChallengeMethod,
-            resource: row.resource ?? undefined,
+            resource: row.resource?.trim() || defaultMcpResource(),
             scope: row.scope ?? undefined,
             expires_at: Number(row.expiresAt),
             used_at: row.usedAt ?? undefined,

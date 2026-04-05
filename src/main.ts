@@ -1,11 +1,15 @@
-import { NestFactory } from '@nestjs/core'
+import { HttpAdapterHost, NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module'
 import { NotFoundExceptionFilter } from './config/exception/NotFoundExceptionFilter'
+import { McpOAuthTokenFallbackFilter } from './config/mcp/mcp-oauth-token-fallback.filter'
+import { McpOAuthTokenHttpExceptionFilter } from './config/mcp/mcp-oauth-token-exception.filter'
+import { attachMcpTokenJsonWrapper } from './config/mcp/mcp-oauth-token-response.middleware'
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { json, NextFunction, Request, Response, urlencoded } from 'express'
 import * as cookieParser from 'cookie-parser'
 import * as session from 'express-session'
 import { hashClientSecret, isHashedClientSecret } from './config/mcp/oauth-security.util'
+import { isNonHttpAppUrl, sendHtmlRedirect } from './config/oauth-html-redirect.util'
 
 const passport: any = require('passport')
 
@@ -39,6 +43,25 @@ const createRateLimitMiddleware = (limit: number, windowMs: number) => {
 
 async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule)
+    app.set('trust proxy', 1)
+
+    const httpAdapter = app.getHttpAdapter()
+    const expressApp = httpAdapter.getInstance() as import('express').Express
+    expressApp.use((req, res, next) => {
+        const orig = res.redirect.bind(res)
+        res.redirect = ((statusOrUrl: string | number, url?: string) => {
+            if (typeof statusOrUrl === 'number' && url !== undefined && isNonHttpAppUrl(url)) {
+                sendHtmlRedirect(res, url, 'generic-app')
+                return res
+            }
+            if (typeof statusOrUrl === 'string' && isNonHttpAppUrl(statusOrUrl)) {
+                sendHtmlRedirect(res, statusOrUrl, 'generic-app')
+                return res
+            }
+            return url !== undefined ? orig(statusOrUrl as number, url) : orig(statusOrUrl as string)
+        }) as typeof res.redirect
+        next()
+    })
 
     passport.serializeUser((user, done) => done(null, user))
     passport.deserializeUser((user: any, done: (err: any, user?: any) => void) => done(null, user))
@@ -60,21 +83,40 @@ async function bootstrap() {
     )
     app.use(passport.initialize())
     app.use(passport.session())
+    app.use('/mcp/oauth/token', attachMcpTokenJsonWrapper)
     app.use('/mcp/oauth/token', (req: Request, _res: Response, next: NextFunction) => {
         const auth = req.headers.authorization
         if (auth?.startsWith('Basic ')) {
             const raw = Buffer.from(auth.slice(6), 'base64').toString('utf8')
             const idx = raw.indexOf(':')
             if (idx >= 0) {
-                const clientId = raw.slice(0, idx)
-                const clientSecret = raw.slice(idx + 1)
-                const hashed = isHashedClientSecret(clientSecret) ? clientSecret : hashClientSecret(clientSecret)
-                req.headers.authorization = `Basic ${Buffer.from(`${clientId}:${hashed}`).toString('base64')}`
+                const clientId = raw.slice(0, idx).trim()
+                const clientSecret = raw.slice(idx + 1).trim()
+                // Public clients use empty secret; hashing "" or whitespace breaks auth_method "none".
+                if (clientSecret.length > 0) {
+                    const hashed = isHashedClientSecret(clientSecret) ? clientSecret : hashClientSecret(clientSecret)
+                    req.headers.authorization = `Basic ${Buffer.from(`${clientId}:${hashed}`).toString('base64')}`
+                } else if (clientId.length > 0) {
+                    req.headers.authorization = `Basic ${Buffer.from(`${clientId}:`).toString('base64')}`
+                }
             }
         }
         const body = req.body as Record<string, unknown> | undefined
-        if (body && typeof body.client_secret === 'string' && !isHashedClientSecret(body.client_secret)) {
-            body.client_secret = hashClientSecret(body.client_secret)
+        if (body) {
+            for (const k of ['client_id', 'code', 'redirect_uri', 'code_verifier', 'grant_type'] as const) {
+                const v = body[k]
+                if (typeof v === 'string') body[k] = v.trim()
+            }
+            if (typeof body.client_secret === 'string') {
+                const s = body.client_secret.trim()
+                if (s.length === 0) {
+                    delete body.client_secret
+                } else if (!isHashedClientSecret(s)) {
+                    body.client_secret = hashClientSecret(s)
+                } else {
+                    body.client_secret = s
+                }
+            }
         }
         next()
     })
@@ -105,7 +147,12 @@ async function bootstrap() {
         origin: '*'
     })
 
-    app.useGlobalFilters(new NotFoundExceptionFilter())
+    const adapterHost = app.get(HttpAdapterHost)
+    app.useGlobalFilters(
+        new McpOAuthTokenHttpExceptionFilter(),
+        new NotFoundExceptionFilter(),
+        new McpOAuthTokenFallbackFilter(adapterHost)
+    )
     // app.setGlobalPrefix('api')
     await app.listen(PORT)
 

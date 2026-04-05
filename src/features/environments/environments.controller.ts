@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common'
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common'
 import { EnvironmentsService } from './environments.service'
 import { CreateEnvironmentDto } from './dto/create-environment.dto'
 import { UpdateEnvironmentDto } from './dto/update-environment.dto'
@@ -11,8 +11,9 @@ export class EnvironmentsController {
     constructor(private readonly environmentsService: EnvironmentsService) {}
 
     @Get()
-    async findAll(@Req() req: Request) {
-        const result = await this.environmentsService.findAll(req['user'].userId)
+    async findAll(@Req() req: Request, @Query('workspaceId') workspaceId?: string) {
+        const ws = workspaceId != null && workspaceId !== '' ? +workspaceId : undefined
+        const result = await this.environmentsService.findAll(req['user'].userId, ws)
         return { message: 'Environments fetched successfully', data: result }
     }
 
