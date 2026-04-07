@@ -93,7 +93,7 @@ model CollectionRequest {
   sortOrder    Int        @default(0)
   name         String
   method       String
-  url          String?
+  url          String? @db.Text
   headers      Json?
   params       Json?
   body         Json?
