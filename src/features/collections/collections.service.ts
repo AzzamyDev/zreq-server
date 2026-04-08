@@ -55,7 +55,8 @@ export class CollectionsService {
     }
 
     private toAuth(auth: unknown): Record<string, unknown> {
-        if (!this.isRecord(auth)) return { type: 'none' }
+        // Null/absent in DB means "inherit from collection / folder chain" on the client
+        if (!this.isRecord(auth)) return { type: 'inherit' }
         return auth
     }
 
@@ -213,6 +214,13 @@ export class CollectionsService {
             for (const k of kids) queue.push(k.id)
         }
         toDelete.sort((a, b) => b - a)
+        // Drop every request row under this root subtree before rebuilding. Nested folder rows
+        // cascade-delete with folders, but root-level requests (folderId = root.id) did not —
+        // leaving ghosts that made deletes appear to "come back" after sync.
+        const folderIdsToClearRequests = [args.root.id, ...toDelete]
+        await tx.collectionRequest.deleteMany({
+            where: { folderId: { in: folderIdsToClearRequests } },
+        })
         for (const id of toDelete) {
             await tx.collection.delete({ where: { id } })
         }
@@ -270,7 +278,7 @@ export class CollectionsService {
                     const body = (
                         this.isRecord(n.body) ? n.body : { type: 'none', content: '' }
                     ) as Prisma.InputJsonValue
-                    const auth = (this.isRecord(n.auth) ? n.auth : { type: 'none' }) as Prisma.InputJsonValue
+                    const auth = (this.isRecord(n.auth) ? n.auth : { type: 'inherit' }) as Prisma.InputJsonValue
                     const scriptsObj = this.isRecord(n.scripts) ? n.scripts : undefined
                     const scriptsJson = scriptsObj ? (scriptsObj as Prisma.InputJsonValue) : undefined
                     const preRequest =
