@@ -17,6 +17,10 @@ type NormalizedCollectionItem = {
     body?: { type: string; content: string }
     auth?: Record<string, unknown>
     scripts?: { preRequest?: string; postResponse?: string }
+    protocol?: 'http' | 'ws'
+    subprotocols?: string
+    savedMessages?: unknown[]
+    messageTemplate?: string
 }
 
 type CollectionFolderItem = {
@@ -37,6 +41,10 @@ type CollectionRequestItem = {
     body?: { type: string; content: string }
     auth?: Record<string, unknown>
     scripts?: { preRequest?: string; postResponse?: string }
+    protocol?: 'http' | 'ws'
+    subprotocols?: string
+    savedMessages?: unknown[]
+    messageTemplate?: string
 }
 
 type CollectionTreeItem = CollectionFolderItem | CollectionRequestItem
@@ -50,6 +58,11 @@ export class CollectionsMcpTool {
 
     private toItemId = (name: string, idx: number) =>
         `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'item'}-${idx}`
+
+    private resolveProtocol(protocol: unknown, url: string): 'http' | 'ws' {
+        if (protocol === 'ws' || protocol === 'http') return protocol
+        return /^wss?:\/\//i.test(url) ? 'ws' : 'http'
+    }
 
     private normalizeItems(items: unknown[] | undefined): unknown[] | undefined {
         if (!Array.isArray(items)) return items
@@ -82,6 +95,13 @@ export class CollectionsMcpTool {
                       ? item.request.url
                       : ''
 
+            const protocol = this.resolveProtocol(item?.protocol, requestUrl)
+            const subprotocols =
+                typeof item?.subprotocols === 'string' ? item.subprotocols : undefined
+            const savedMessages = Array.isArray(item?.savedMessages) ? item.savedMessages : undefined
+            const messageTemplate =
+                typeof item?.messageTemplate === 'string' ? item.messageTemplate : undefined
+
             return {
                 id,
                 type: 'request',
@@ -110,7 +130,11 @@ export class CollectionsMcpTool {
                                       ? item.scripts.postResponse
                                       : undefined
                           }
-                        : undefined
+                        : undefined,
+                protocol,
+                ...(subprotocols !== undefined && { subprotocols }),
+                ...(savedMessages !== undefined && { savedMessages }),
+                ...(messageTemplate !== undefined && { messageTemplate })
             }
         }
 
@@ -156,7 +180,12 @@ export class CollectionsMcpTool {
         auth?: Record<string, unknown>
         preRequest?: string
         postResponse?: string
+        protocol?: 'http' | 'ws'
+        subprotocols?: string
+        savedMessages?: unknown[]
+        messageTemplate?: string
     }): CollectionRequestItem {
+        const protocol = this.resolveProtocol(args.protocol, args.url)
         return {
             id: args.requestId?.trim() || this.toItemId(args.requestName, Date.now()),
             type: 'request',
@@ -170,7 +199,11 @@ export class CollectionsMcpTool {
             scripts: {
                 ...(args.preRequest !== undefined && { preRequest: args.preRequest }),
                 ...(args.postResponse !== undefined && { postResponse: args.postResponse })
-            }
+            },
+            protocol,
+            ...(args.subprotocols !== undefined && { subprotocols: args.subprotocols }),
+            ...(args.savedMessages !== undefined && { savedMessages: args.savedMessages }),
+            ...(args.messageTemplate !== undefined && { messageTemplate: args.messageTemplate })
         }
     }
 
@@ -400,6 +433,10 @@ export class CollectionsMcpTool {
             auth: z.record(z.string(), z.unknown()).optional(),
             preRequest: z.string().optional(),
             postResponse: z.string().optional(),
+            protocol: z.enum(['http', 'ws']).optional(),
+            subprotocols: z.string().optional(),
+            savedMessages: z.array(z.any()).optional(),
+            messageTemplate: z.string().optional(),
             expectedUpdatedAt: z.string().optional(),
             force: z.boolean().optional()
         })
@@ -418,6 +455,10 @@ export class CollectionsMcpTool {
             auth?: Record<string, unknown>
             preRequest?: string
             postResponse?: string
+            protocol?: 'http' | 'ws'
+            subprotocols?: string
+            savedMessages?: unknown[]
+            messageTemplate?: string
             expectedUpdatedAt?: string
             force?: boolean
         },
@@ -471,6 +512,10 @@ export class CollectionsMcpTool {
             auth: z.record(z.string(), z.unknown()).optional(),
             preRequest: z.string().optional(),
             postResponse: z.string().optional(),
+            protocol: z.enum(['http', 'ws']).optional(),
+            subprotocols: z.string().optional(),
+            savedMessages: z.array(z.any()).optional(),
+            messageTemplate: z.string().optional(),
             expectedUpdatedAt: z.string().optional(),
             force: z.boolean().optional()
         })
@@ -488,6 +533,10 @@ export class CollectionsMcpTool {
             auth?: Record<string, unknown>
             preRequest?: string
             postResponse?: string
+            protocol?: 'http' | 'ws'
+            subprotocols?: string
+            savedMessages?: unknown[]
+            messageTemplate?: string
             expectedUpdatedAt?: string
             force?: boolean
         },
@@ -500,21 +549,35 @@ export class CollectionsMcpTool {
             Array.isArray(collection.items) ? collection.items : []
         ) ?? []) as CollectionTreeItem[]
 
-        const { items, updated } = this.updateRequestById(normalizedItems, args.requestId, (current) => ({
-            ...current,
-            ...(args.requestName !== undefined && { name: args.requestName.trim() }),
-            ...(args.method !== undefined && { method: args.method.toUpperCase() }),
-            ...(args.url !== undefined && { url: args.url }),
-            ...(args.headers !== undefined && { headers: args.headers }),
-            ...(args.params !== undefined && { params: args.params }),
-            ...(args.body !== undefined && { body: args.body }),
-            ...(args.auth !== undefined && { auth: args.auth }),
-            scripts: {
-                ...(current.scripts ?? {}),
-                ...(args.preRequest !== undefined && { preRequest: args.preRequest }),
-                ...(args.postResponse !== undefined && { postResponse: args.postResponse })
+        const { items, updated } = this.updateRequestById(normalizedItems, args.requestId, (current) => {
+            const nextUrl = args.url ?? current.url
+            const nextProtocol =
+                args.protocol !== undefined
+                    ? args.protocol
+                    : args.url !== undefined
+                      ? this.resolveProtocol(current.protocol, nextUrl)
+                      : current.protocol
+
+            return {
+                ...current,
+                ...(args.requestName !== undefined && { name: args.requestName.trim() }),
+                ...(args.method !== undefined && { method: args.method.toUpperCase() }),
+                ...(args.url !== undefined && { url: args.url }),
+                ...(args.headers !== undefined && { headers: args.headers }),
+                ...(args.params !== undefined && { params: args.params }),
+                ...(args.body !== undefined && { body: args.body }),
+                ...(args.auth !== undefined && { auth: args.auth }),
+                ...(nextProtocol !== undefined && { protocol: nextProtocol }),
+                ...(args.subprotocols !== undefined && { subprotocols: args.subprotocols }),
+                ...(args.savedMessages !== undefined && { savedMessages: args.savedMessages }),
+                ...(args.messageTemplate !== undefined && { messageTemplate: args.messageTemplate }),
+                scripts: {
+                    ...(current.scripts ?? {}),
+                    ...(args.preRequest !== undefined && { preRequest: args.preRequest }),
+                    ...(args.postResponse !== undefined && { postResponse: args.postResponse })
+                }
             }
-        }))
+        })
 
         if (!updated) {
             throw new BadRequestException(`Request not found: ${args.requestId}`)

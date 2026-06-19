@@ -60,6 +60,17 @@ export class CollectionsService {
         return auth
     }
 
+    private resolveProtocol(protocol: unknown, url: string): 'http' | 'ws' {
+        if (protocol === 'ws' || protocol === 'http') return protocol
+        return /^wss?:\/\//i.test(url) ? 'ws' : 'http'
+    }
+
+    private asJsonArray(value: Prisma.JsonValue | null | undefined): unknown[] | undefined {
+        if (value == null) return undefined
+        if (Array.isArray(value)) return value
+        return undefined
+    }
+
     private toScriptsRow(req: CollectionRequestRow): { preRequest?: string; postResponse?: string } | undefined {
         const fromCols = {
             ...(req.preRequest ? { preRequest: req.preRequest } : {}),
@@ -80,17 +91,24 @@ export class CollectionsService {
     }
 
     private mapRequestToItem(req: CollectionRequestRow): Record<string, unknown> {
+        const url = req.url ?? ''
+        const protocol = this.resolveProtocol(req.protocol, url)
+        const savedMessages = this.asJsonArray(req.savedMessages)
         return {
             id: req.clientItemId?.trim() ? req.clientItemId.trim() : String(req.id),
             type: 'request',
             name: req.name,
             method: req.method,
-            url: req.url ?? '',
+            url,
             headers: this.asStringArrayJson(req.headers),
             params: this.asStringArrayJson(req.params),
             body: this.toBody(req.body),
             auth: this.toAuth(req.auth),
-            ...(this.toScriptsRow(req) ? { scripts: this.toScriptsRow(req) } : {})
+            ...(this.toScriptsRow(req) ? { scripts: this.toScriptsRow(req) } : {}),
+            protocol,
+            ...(req.subprotocols != null ? { subprotocols: req.subprotocols } : {}),
+            ...(savedMessages != null ? { savedMessages } : {}),
+            ...(req.messageTemplate != null ? { messageTemplate: req.messageTemplate } : {})
         }
     }
 
@@ -295,6 +313,14 @@ export class CollectionsService {
                                 : null
                     const clientItemId =
                         typeof n.id === 'string' && n.id.trim() ? n.id.trim().slice(0, 191) : null
+                    const protocol = this.resolveProtocol(n.protocol, urlRaw)
+                    const subprotocols =
+                        typeof n.subprotocols === 'string' ? n.subprotocols : null
+                    const savedMessages = Array.isArray(n.savedMessages)
+                        ? (n.savedMessages as Prisma.InputJsonValue)
+                        : Prisma.JsonNull
+                    const messageTemplate =
+                        typeof n.messageTemplate === 'string' ? n.messageTemplate : null
 
                     await tx.collectionRequest.create({
                         data: {
@@ -310,7 +336,11 @@ export class CollectionsService {
                             auth,
                             scripts: scriptsJson ?? Prisma.JsonNull,
                             preRequest,
-                            postResponse
+                            postResponse,
+                            protocol,
+                            subprotocols,
+                            savedMessages,
+                            messageTemplate
                         }
                     })
                     continue
@@ -368,10 +398,11 @@ export class CollectionsService {
     }
 
     async findOne(id: number, userId: number): Promise<CollectionApiRow> {
-        const col = await this.prismaService.collection.findUniqueOrThrow({
+        const col = await this.prismaService.collection.findUnique({
             where: { id },
             include: { updatedByUser: { select: updatedBySelect } }
         })
+        if (!col) throw new NotFoundException('Collection not found')
         await this.workspacesService.assertWorkspaceAccess(userId, col.workspaceId)
         return this.mapCollectionRow(col)
     }
@@ -414,7 +445,8 @@ export class CollectionsService {
     }
 
     async update(id: number, dto: UpdateCollectionDto, userId: number): Promise<CollectionApiRow> {
-        const col = await this.prismaService.collection.findUniqueOrThrow({ where: { id } })
+        const col = await this.prismaService.collection.findUnique({ where: { id } })
+        if (!col) throw new NotFoundException('Collection not found')
         await this.workspacesService.assertWorkspaceAccess(userId, col.workspaceId)
         const raw = dto as UpdateCollectionDto & { expectedUpdatedAt?: string; force?: boolean; description?: string; auth?: Record<string, unknown>; variables?: unknown[] }
         const { expectedUpdatedAt, force, name, items } = raw

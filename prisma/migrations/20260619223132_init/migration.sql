@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE `User` (
+CREATE TABLE `users` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
     `email` VARCHAR(191) NOT NULL,
@@ -8,39 +8,39 @@ CREATE TABLE `User` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `User_email_key`(`email`),
-    UNIQUE INDEX `User_githubId_key`(`githubId`),
+    UNIQUE INDEX `users_email_key`(`email`),
+    UNIQUE INDEX `users_githubId_key`(`githubId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `Workspace` (
+CREATE TABLE `workspaces` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
     `userId` INTEGER NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Workspace_userId_idx`(`userId`),
-    UNIQUE INDEX `Workspace_userId_name_key`(`userId`, `name`),
+    INDEX `workspaces_userId_idx`(`userId`),
+    UNIQUE INDEX `workspaces_userId_name_key`(`userId`, `name`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `WorkspaceMember` (
+CREATE TABLE `workspace_members` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `workspaceId` INTEGER NOT NULL,
     `userId` INTEGER NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `WorkspaceMember_userId_idx`(`userId`),
-    UNIQUE INDEX `WorkspaceMember_workspaceId_userId_key`(`workspaceId`, `userId`),
+    INDEX `workspace_members_userId_idx`(`userId`),
+    UNIQUE INDEX `workspace_members_workspaceId_userId_key`(`workspaceId`, `userId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `Collection` (
+CREATE TABLE `collections` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `parentId` INTEGER NULL,
     `sortOrder` INTEGER NOT NULL DEFAULT 0,
@@ -55,22 +55,22 @@ CREATE TABLE `Collection` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Collection_workspaceId_idx`(`workspaceId`),
-    INDEX `Collection_parentId_sortOrder_idx`(`parentId`, `sortOrder`),
-    INDEX `Collection_workspaceId_createdAt_idx`(`workspaceId`, `createdAt`),
-    UNIQUE INDEX `Collection_workspaceId_clientFolderId_key`(`workspaceId`, `clientFolderId`),
+    INDEX `collections_workspaceId_idx`(`workspaceId`),
+    INDEX `collections_parentId_sortOrder_idx`(`parentId`, `sortOrder`),
+    INDEX `collections_workspaceId_createdAt_idx`(`workspaceId`, `createdAt`),
+    UNIQUE INDEX `collections_workspaceId_clientFolderId_key`(`workspaceId`, `clientFolderId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `CollectionRequest` (
+CREATE TABLE `collection_requests` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `folderId` INTEGER NOT NULL,
     `clientItemId` VARCHAR(191) NULL,
     `sortOrder` INTEGER NOT NULL DEFAULT 0,
     `name` VARCHAR(191) NOT NULL,
     `method` VARCHAR(191) NOT NULL,
-    `url` VARCHAR(191) NULL,
+    `url` TEXT NULL,
     `headers` JSON NULL,
     `params` JSON NULL,
     `body` JSON NULL,
@@ -78,18 +78,22 @@ CREATE TABLE `CollectionRequest` (
     `scripts` JSON NULL,
     `preRequest` VARCHAR(191) NULL,
     `postResponse` VARCHAR(191) NULL,
+    `protocol` VARCHAR(191) NOT NULL DEFAULT 'http',
+    `subprotocols` VARCHAR(191) NULL,
+    `savedMessages` JSON NULL,
+    `messageTemplate` TEXT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `CollectionRequest_folderId_idx`(`folderId`),
-    INDEX `CollectionRequest_folderId_sortOrder_idx`(`folderId`, `sortOrder`),
-    INDEX `CollectionRequest_folderId_createdAt_idx`(`folderId`, `createdAt`),
-    INDEX `CollectionRequest_folderId_updatedAt_idx`(`folderId`, `updatedAt`),
+    INDEX `collection_requests_folderId_idx`(`folderId`),
+    INDEX `collection_requests_folderId_sortOrder_idx`(`folderId`, `sortOrder`),
+    INDEX `collection_requests_folderId_createdAt_idx`(`folderId`, `createdAt`),
+    INDEX `collection_requests_folderId_updatedAt_idx`(`folderId`, `updatedAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `Environment` (
+CREATE TABLE `environments` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
     `workspaceId` INTEGER NOT NULL,
@@ -97,12 +101,12 @@ CREATE TABLE `Environment` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Environment_workspaceId_createdAt_idx`(`workspaceId`, `createdAt`),
+    INDEX `environments_workspaceId_createdAt_idx`(`workspaceId`, `createdAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `EnvironmentVariable` (
+CREATE TABLE `environment_variables` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `key` VARCHAR(191) NOT NULL,
     `value` TEXT NOT NULL,
@@ -116,7 +120,7 @@ CREATE TABLE `EnvironmentVariable` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `OAuthClientStore` (
+CREATE TABLE `oauth_client_stores` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `clientId` VARCHAR(191) NOT NULL,
     `clientSecret` VARCHAR(191) NULL,
@@ -136,13 +140,13 @@ CREATE TABLE `OAuthClientStore` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `OAuthClientStore_clientId_key`(`clientId`),
-    INDEX `OAuthClientStore_userId_idx`(`userId`),
+    UNIQUE INDEX `oauth_client_stores_clientId_key`(`clientId`),
+    INDEX `oauth_client_stores_userId_idx`(`userId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `OAuthAuthorizationCode` (
+CREATE TABLE `oauth_authorization_codes` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `code` VARCHAR(191) NOT NULL,
     `userId` VARCHAR(191) NOT NULL,
@@ -158,13 +162,13 @@ CREATE TABLE `OAuthAuthorizationCode` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `OAuthAuthorizationCode_code_key`(`code`),
-    INDEX `OAuthAuthorizationCode_clientId_idx`(`clientId`),
+    UNIQUE INDEX `oauth_authorization_codes_code_key`(`code`),
+    INDEX `oauth_authorization_codes_clientId_idx`(`clientId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `OAuthSessionStore` (
+CREATE TABLE `oauth_session_stores` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `sessionId` VARCHAR(191) NOT NULL,
     `state` VARCHAR(191) NOT NULL,
@@ -179,12 +183,12 @@ CREATE TABLE `OAuthSessionStore` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `OAuthSessionStore_sessionId_key`(`sessionId`),
+    UNIQUE INDEX `oauth_session_stores_sessionId_key`(`sessionId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `OAuthUserProfileStore` (
+CREATE TABLE `oauth_user_profile_stores` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `profileId` VARCHAR(191) NOT NULL,
     `provider` VARCHAR(191) NOT NULL,
@@ -193,46 +197,46 @@ CREATE TABLE `OAuthUserProfileStore` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `OAuthUserProfileStore_profileId_key`(`profileId`),
-    UNIQUE INDEX `OAuthUserProfileStore_provider_providerUserId_key`(`provider`, `providerUserId`),
+    UNIQUE INDEX `oauth_user_profile_stores_profileId_key`(`profileId`),
+    UNIQUE INDEX `oauth_user_profile_stores_provider_providerUserId_key`(`provider`, `providerUserId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
-ALTER TABLE `Workspace` ADD CONSTRAINT `Workspace_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `workspaces` ADD CONSTRAINT `workspaces_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `WorkspaceMember` ADD CONSTRAINT `WorkspaceMember_workspaceId_fkey` FOREIGN KEY (`workspaceId`) REFERENCES `Workspace`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `workspace_members` ADD CONSTRAINT `workspace_members_workspaceId_fkey` FOREIGN KEY (`workspaceId`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `WorkspaceMember` ADD CONSTRAINT `WorkspaceMember_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `workspace_members` ADD CONSTRAINT `workspace_members_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Collection` ADD CONSTRAINT `Collection_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `collections` ADD CONSTRAINT `collections_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Collection` ADD CONSTRAINT `Collection_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `collections` ADD CONSTRAINT `collections_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Collection` ADD CONSTRAINT `Collection_workspaceId_fkey` FOREIGN KEY (`workspaceId`) REFERENCES `Workspace`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `collections` ADD CONSTRAINT `collections_workspaceId_fkey` FOREIGN KEY (`workspaceId`) REFERENCES `workspaces`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Collection` ADD CONSTRAINT `Collection_parentId_fkey` FOREIGN KEY (`parentId`) REFERENCES `Collection`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `collections` ADD CONSTRAINT `collections_parentId_fkey` FOREIGN KEY (`parentId`) REFERENCES `collections`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `CollectionRequest` ADD CONSTRAINT `CollectionRequest_folderId_fkey` FOREIGN KEY (`folderId`) REFERENCES `Collection`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `collection_requests` ADD CONSTRAINT `collection_requests_folderId_fkey` FOREIGN KEY (`folderId`) REFERENCES `collections`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Environment` ADD CONSTRAINT `Environment_workspaceId_fkey` FOREIGN KEY (`workspaceId`) REFERENCES `Workspace`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `environments` ADD CONSTRAINT `environments_workspaceId_fkey` FOREIGN KEY (`workspaceId`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Environment` ADD CONSTRAINT `Environment_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `environments` ADD CONSTRAINT `environments_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `EnvironmentVariable` ADD CONSTRAINT `EnvironmentVariable_environmentId_fkey` FOREIGN KEY (`environmentId`) REFERENCES `Environment`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `environment_variables` ADD CONSTRAINT `environment_variables_environmentId_fkey` FOREIGN KEY (`environmentId`) REFERENCES `environments`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `EnvironmentVariable` ADD CONSTRAINT `EnvironmentVariable_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `environment_variables` ADD CONSTRAINT `environment_variables_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `OAuthClientStore` ADD CONSTRAINT `OAuthClientStore_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `oauth_client_stores` ADD CONSTRAINT `oauth_client_stores_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

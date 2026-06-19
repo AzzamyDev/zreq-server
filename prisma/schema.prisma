@@ -28,6 +28,8 @@ model User {
   mcpOAuthClients      OAuthClientStore[]
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
+
+  @@map("users")
 }
 
 model Workspace {
@@ -43,6 +45,7 @@ model Workspace {
 
   @@unique([userId, name])
   @@index([userId])
+  @@map("workspaces")
 }
 
 model WorkspaceMember {
@@ -56,6 +59,7 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@index([userId])
+  @@map("workspace_members")
 }
 
 model Collection {
@@ -84,6 +88,7 @@ model Collection {
   @@index([parentId, sortOrder])
   @@unique([workspaceId, clientFolderId])
   @@index([workspaceId, createdAt])
+  @@map("collections")
 }
 
 model CollectionRequest {
@@ -101,6 +106,10 @@ model CollectionRequest {
   scripts      Json?
   preRequest   String?
   postResponse String?
+  protocol         String  @default("http")
+  subprotocols     String?
+  savedMessages    Json?
+  messageTemplate  String? @db.Text
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   folder       Collection @relation(fields: [folderId], references: [id], onDelete: Cascade)
@@ -109,6 +118,7 @@ model CollectionRequest {
   @@index([folderId, sortOrder])
   @@index([folderId, createdAt])
   @@index([folderId, updatedAt])
+  @@map("collection_requests")
 }
 
 model Environment {
@@ -123,6 +133,7 @@ model Environment {
   updatedAt         DateTime              @updatedAt
 
   @@index([workspaceId, createdAt])
+  @@map("environments")
 }
 
 model EnvironmentVariable {
@@ -136,6 +147,7 @@ model EnvironmentVariable {
   updatedByUser   User?       @relation("EnvVarUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+  @@map("environment_variables")
 }
 
 model OAuthClientStore {
@@ -163,6 +175,7 @@ model OAuthClientStore {
   updatedAt               DateTime @updatedAt
 
   @@index([userId])
+  @@map("oauth_client_stores")
 }
 
 model OAuthAuthorizationCode {
@@ -182,6 +195,7 @@ model OAuthAuthorizationCode {
   updatedAt           DateTime  @updatedAt
 
   @@index([clientId])
+  @@map("oauth_authorization_codes")
 }
 
 model OAuthSessionStore {
@@ -198,6 +212,7 @@ model OAuthSessionStore {
   expiresAt           BigInt
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  @@map("oauth_session_stores")
 }
 
 model OAuthUserProfileStore {
@@ -210,4 +225,5 @@ model OAuthUserProfileStore {
   updatedAt      DateTime @updatedAt
 
   @@unique([provider, providerUserId])
+  @@map("oauth_user_profile_stores")
 }
