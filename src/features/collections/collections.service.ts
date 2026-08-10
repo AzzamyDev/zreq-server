@@ -94,6 +94,7 @@ export class CollectionsService {
         const url = req.url ?? ''
         const protocol = this.resolveProtocol(req.protocol, url)
         const savedMessages = this.asJsonArray(req.savedMessages)
+        const savedResponses = this.asJsonArray(req.savedResponses)
         return {
             id: req.clientItemId?.trim() ? req.clientItemId.trim() : String(req.id),
             type: 'request',
@@ -108,7 +109,8 @@ export class CollectionsService {
             protocol,
             ...(req.subprotocols != null ? { subprotocols: req.subprotocols } : {}),
             ...(savedMessages != null ? { savedMessages } : {}),
-            ...(req.messageTemplate != null ? { messageTemplate: req.messageTemplate } : {})
+            ...(req.messageTemplate != null ? { messageTemplate: req.messageTemplate } : {}),
+            ...(savedResponses != null ? { savedResponses } : {})
         }
     }
 
@@ -321,6 +323,9 @@ export class CollectionsService {
                         : Prisma.JsonNull
                     const messageTemplate =
                         typeof n.messageTemplate === 'string' ? n.messageTemplate : null
+                    const savedResponses = Array.isArray(n.savedResponses)
+                        ? (n.savedResponses as Prisma.InputJsonValue)
+                        : Prisma.JsonNull
 
                     await tx.collectionRequest.create({
                         data: {
@@ -340,7 +345,8 @@ export class CollectionsService {
                             protocol,
                             subprotocols,
                             savedMessages,
-                            messageTemplate
+                            messageTemplate,
+                            savedResponses
                         }
                     })
                     continue

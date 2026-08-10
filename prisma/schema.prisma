@@ -110,6 +110,7 @@ model CollectionRequest {
   subprotocols     String?
   savedMessages    Json?
   messageTemplate  String? @db.Text
+  savedResponses   Json?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   folder       Collection @relation(fields: [folderId], references: [id], onDelete: Cascade)
