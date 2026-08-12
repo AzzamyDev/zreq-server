@@ -1,22 +1,13 @@
-FROM node:22-bookworm-slim AS base
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    openssl \
-    ca-certificates \
-    python3 \
-    make \
-    g++ \
-  && rm -rf /var/lib/apt/lists/*
+# Full image has build tools (gcc/python) — no apt-get needed during build.
+FROM node:22-bookworm AS build
 WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
-FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-FROM deps AS build
 COPY prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
@@ -24,8 +15,14 @@ COPY nest-cli.json tsconfig.json tsconfig.build.json ./
 RUN pnpm exec prisma generate
 RUN pnpm run build
 
-FROM base AS production
+# Slim runtime — libssl3 is preinstalled; skip apt-get (often fails on locked-down hosts).
+FROM node:22-bookworm-slim AS production
+WORKDIR /app
 ENV NODE_ENV=production
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 
