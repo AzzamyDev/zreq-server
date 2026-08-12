@@ -23,6 +23,7 @@ export type CollectionApiRow = {
     auth: unknown
     variables: unknown
     items: unknown
+    sortOrder: number
     userId: number
     workspaceId: number
     createdAt: string
@@ -367,6 +368,7 @@ export class CollectionsService {
             auth: col.auth ?? null,
             variables: col.variables ?? null,
             items: await this.buildItemsPayload(col.id),
+            sortOrder: col.sortOrder,
             userId: col.userId,
             workspaceId: col.workspaceId,
             createdAt: col.createdAt.toISOString(),
@@ -391,7 +393,7 @@ export class CollectionsService {
         const ordered = await this.prismaService.collection.findMany({
             where,
             select: { id: true },
-            orderBy: { createdAt: 'asc' }
+            orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }]
         })
         const ids = ordered.map((r) => r.id)
         if (ids.length === 0) return []
@@ -428,10 +430,18 @@ export class CollectionsService {
             await this.workspacesService.assertWorkspaceAccess(userId, workspaceId)
         }
         const created = await this.prismaService.$transaction(async (tx) => {
+            let sortOrder = dto.sortOrder
+            if (sortOrder == null) {
+                const agg = await tx.collection.aggregate({
+                    where: { workspaceId, parentId: null },
+                    _max: { sortOrder: true }
+                })
+                sortOrder = (agg._max.sortOrder ?? -1) + 1
+            }
             const root = await tx.collection.create({
                 data: {
                     parentId: null,
-                    sortOrder: 0,
+                    sortOrder,
                     name: dto.name,
                     description: dto.description ?? null,
                     auth: dto.auth ? (dto.auth as Prisma.InputJsonValue) : Prisma.JsonNull,
@@ -454,7 +464,14 @@ export class CollectionsService {
         const col = await this.prismaService.collection.findUnique({ where: { id } })
         if (!col) throw new NotFoundException('Collection not found')
         await this.workspacesService.assertWorkspaceAccess(userId, col.workspaceId)
-        const raw = dto as UpdateCollectionDto & { expectedUpdatedAt?: string; force?: boolean; description?: string; auth?: Record<string, unknown>; variables?: unknown[] }
+        const raw = dto as UpdateCollectionDto & {
+            expectedUpdatedAt?: string
+            force?: boolean
+            description?: string
+            auth?: Record<string, unknown>
+            variables?: unknown[]
+            sortOrder?: number
+        }
         const { expectedUpdatedAt, force, name, items } = raw
         if (expectedUpdatedAt && !force) {
             if (col.updatedAt.toISOString() !== expectedUpdatedAt) {
@@ -472,7 +489,7 @@ export class CollectionsService {
                 )
             }
         }
-        const { description, auth, variables } = raw
+        const { description, auth, variables, sortOrder } = raw
         const updated = await this.prismaService.$transaction(async (tx) => {
             const next = await tx.collection.update({
                 where: { id },
@@ -481,6 +498,7 @@ export class CollectionsService {
                     ...(description !== undefined && { description }),
                     ...(auth !== undefined && { auth: auth as Prisma.InputJsonValue }),
                     ...(variables !== undefined && { variables: variables as Prisma.InputJsonValue }),
+                    ...(sortOrder !== undefined && { sortOrder }),
                     updatedByUserId: userId
                 }
             })

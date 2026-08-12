@@ -104,8 +104,8 @@ model CollectionRequest {
   body         Json?
   auth         Json?
   scripts      Json?
-  preRequest   String?
-  postResponse String?
+  preRequest   String? @db.Text
+  postResponse String? @db.Text
   protocol         String  @default("http")
   subprotocols     String?
   savedMessages    Json?
@@ -207,7 +207,7 @@ model OAuthSessionStore {
   redirectUri         String?
   codeChallenge       String?
   codeChallengeMethod String?
-  oauthState          String?
+  oauthState          String?  @db.Text
   scope               String?
   resource            String?
   expiresAt           BigInt

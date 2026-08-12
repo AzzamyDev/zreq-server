@@ -1,5 +1,5 @@
 import { Module, OnModuleInit } from '@nestjs/common'
-import { McpAuthJwtGuard, McpAuthModule, McpModule, McpTransportType } from '@rekog/mcp-nest'
+import { McpAuthModule, McpModule, McpTransportType } from '@rekog/mcp-nest'
 import { CollectionsModule } from 'src/features/collections/collections.module'
 import { EnvironmentsModule } from 'src/features/environments/environments.module'
 import { WorkspacesModule } from 'src/features/workspaces/workspaces.module'
@@ -14,6 +14,7 @@ import { deferredOAuthStore } from './deferred-oauth.store'
 import { AuthModule } from 'src/features/auth/auth.module'
 import { McpLocalLoginController } from './mcp-local-login.controller'
 import { PrismaModule } from 'src/config/prisma/prisma.module'
+import { ZreqMcpAuthJwtGuard } from './zreq-mcp-auth-jwt.guard'
 
 const toValidMcpJwtSecret = () => {
     const raw =
@@ -85,13 +86,14 @@ const toValidMcpJwtSecret = () => {
             transport: McpTransportType.STREAMABLE_HTTP,
             apiPrefix: process.env.MCP_API_PREFIX || '',
             mcpEndpoint: process.env.MCP_ENDPOINT || '/mcp',
-            guards: [McpAuthJwtGuard]
+            guards: [ZreqMcpAuthJwtGuard]
         })
     ],
     controllers: [McpLocalLoginController],
     providers: [
         PrismaOAuthStore,
         McpIdentityService,
+        ZreqMcpAuthJwtGuard,
         CollectionsMcpTool,
         EnvironmentsMcpTool,
         WorkspacesMcpTool,

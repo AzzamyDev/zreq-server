@@ -1,4 +1,8 @@
 import { NextFunction, Request, Response } from 'express'
+import {
+    isNestHttpErrorBody,
+    toRfc6749ErrorBody
+} from './mcp-oauth-token.util'
 
 /** Matches default authorize scopes when token response omits `scope` (some clients require it). */
 const DEFAULT_TOKEN_SCOPE =
@@ -17,27 +21,28 @@ export const attachMcpTokenJsonWrapper = (req: Request, res: Response, next: Nex
         return
     }
 
-    console.warn('[mcp-oauth] inbound POST /mcp/oauth/token')
+    const body = req.body as Record<string, unknown> | undefined
+    const verifierLen =
+        body && typeof body.code_verifier === 'string' ? body.code_verifier.trim().length : 0
+    console.warn(
+        `[mcp-oauth] inbound POST /mcp/oauth/token grant=${String(body?.grant_type ?? '')} verifier_len=${verifierLen}`
+    )
 
     const origJson = res.json.bind(res)
-    res.json = (body: unknown) => {
+    res.json = (payload: unknown) => {
         const status = res.statusCode || 200
 
-        if (status >= 400 && body && typeof body === 'object' && !Array.isArray(body)) {
-            const b = body as Record<string, unknown>
-            if (!('error' in b)) {
-                const msg = [b.message, b.error].filter(Boolean).join('; ') || 'Request failed'
-                let err = 'invalid_request'
-                if (status === 401) err = 'invalid_client'
-                if (status === 429) err = 'temporarily_unavailable'
-                if (status >= 500) err = 'server_error'
-                console.warn(`[MCP OAuth /token] ${status} -> RFC error ${err}: ${String(msg).slice(0, 200)}`)
-                return origJson({ error: err, error_description: String(msg) })
+        if (status >= 400 && payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            const b = payload as Record<string, unknown>
+            if (isNestHttpErrorBody(b) || !('error' in b)) {
+                const { error, error_description, httpStatus } = toRfc6749ErrorBody(status, b)
+                console.warn(`[MCP OAuth /token] ${status} -> RFC error ${error}: ${error_description.slice(0, 200)}`)
+                return origJson({ error, error_description })
             }
         }
 
-        if (status === 200 && body && typeof body === 'object' && !Array.isArray(body)) {
-            const o = body as Record<string, unknown>
+        if (status === 200 && payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            const o = payload as Record<string, unknown>
             if (typeof o.access_token === 'string') {
                 if (typeof o.token_type === 'string' && o.token_type.toLowerCase() === 'bearer') {
                     o.token_type = 'Bearer'
@@ -54,13 +59,13 @@ export const attachMcpTokenJsonWrapper = (req: Request, res: Response, next: Nex
 
         if (status >= 400 || process.env.MCP_DEBUG_TOKEN === '1') {
             const keys =
-                body && typeof body === 'object' && !Array.isArray(body)
-                    ? Object.keys(body as object).join(',')
-                    : typeof body
+                payload && typeof payload === 'object' && !Array.isArray(payload)
+                    ? Object.keys(payload as object).join(',')
+                    : typeof payload
             console.warn(`[MCP OAuth /token] response ${status} keys=${keys}`)
         }
 
-        return origJson(body)
+        return origJson(payload)
     }
 
     next()

@@ -6,6 +6,7 @@ import type { Prisma } from '@prisma/generated/client'
 import { PrismaService } from 'src/config/prisma/prisma.service'
 import { hashClientSecret, isHashedClientSecret } from './oauth-security.util'
 import { generateOAuthClientId } from './oauth-client-id.util'
+import { resolveMcpScope } from './mcp-scopes.constant'
 
 const toStringArray = (value: unknown): string[] => (Array.isArray(value) ? value.map(String) : [])
 
@@ -81,6 +82,7 @@ export class PrismaOAuthStore implements IOAuthStore {
         }
 
         const resource = code.resource?.trim() || defaultMcpResource()
+        const scope = resolveMcpScope(code.scope)
         await this.prisma.oAuthAuthorizationCode.upsert({
             where: { code: code.code },
             update: {
@@ -90,7 +92,7 @@ export class PrismaOAuthStore implements IOAuthStore {
                 codeChallenge: code.code_challenge,
                 codeChallengeMethod: code.code_challenge_method,
                 resource,
-                scope: code.scope ?? null,
+                scope,
                 expiresAt: BigInt(code.expires_at),
                 usedAt: code.used_at ?? null,
                 userProfileId: code.user_profile_id ?? null
@@ -103,7 +105,7 @@ export class PrismaOAuthStore implements IOAuthStore {
                 codeChallenge: code.code_challenge,
                 codeChallengeMethod: code.code_challenge_method,
                 resource,
-                scope: code.scope ?? null,
+                scope,
                 expiresAt: BigInt(code.expires_at),
                 usedAt: code.used_at ?? null,
                 userProfileId: code.user_profile_id ?? null
@@ -155,7 +157,7 @@ export class PrismaOAuthStore implements IOAuthStore {
             code_challenge: row.codeChallenge,
             code_challenge_method: row.codeChallengeMethod,
             resource: row.resource?.trim() || defaultMcpResource(),
-            scope: row.scope ?? undefined,
+            scope: resolveMcpScope(row.scope),
             expires_at: Number(row.expiresAt),
             used_at: row.usedAt ?? undefined,
             user_profile_id: row.userProfileId ?? undefined
@@ -176,7 +178,7 @@ export class PrismaOAuthStore implements IOAuthStore {
                 codeChallenge: session.codeChallenge ?? null,
                 codeChallengeMethod: session.codeChallengeMethod ?? null,
                 oauthState: session.oauthState ?? null,
-                scope: session.scope ?? null,
+                scope: resolveMcpScope(session.scope),
                 resource: session.resource ?? null,
                 expiresAt: BigInt(session.expiresAt)
             },
@@ -188,7 +190,7 @@ export class PrismaOAuthStore implements IOAuthStore {
                 codeChallenge: session.codeChallenge ?? null,
                 codeChallengeMethod: session.codeChallengeMethod ?? null,
                 oauthState: session.oauthState ?? null,
-                scope: session.scope ?? null,
+                scope: resolveMcpScope(session.scope),
                 resource: session.resource ?? null,
                 expiresAt: BigInt(session.expiresAt)
             }

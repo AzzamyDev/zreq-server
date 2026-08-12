@@ -7,6 +7,7 @@ export const UpdateCollectionSchema = z.object({
     auth: z.record(z.string(), z.any()).optional(),
     variables: z.array(z.any()).optional(),
     items: z.array(z.any()).optional(),
+    sortOrder: z.number().int().min(0).optional(),
     expectedUpdatedAt: z.string().optional(),
     force: z.boolean().optional()
 })
