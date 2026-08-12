@@ -80,7 +80,8 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-API_PORT="$(grep -E '^PORT=' .env | tail -1 | cut -d= -f2- | tr -d ' "'\''')"
+# grep may exit 1 when PORT is unset; do not let pipefail + errexit kill the script.
+API_PORT="$(grep -E '^PORT=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "'\''"')" || true
 API_PORT="${API_PORT:-3030}"
 
 echo "==> ZReq Docker redeploy"
