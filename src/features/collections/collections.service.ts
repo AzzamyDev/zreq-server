@@ -222,29 +222,31 @@ export class CollectionsService {
     ) {
         const items = Array.isArray(args.items) ? args.items : []
 
-        const descendantIds = await tx.collection.findMany({
-            where: { parentId: args.root.id },
-            select: { id: true }
-        })
-        const queue = descendantIds.map((r) => r.id)
-        const toDelete: number[] = []
-        while (queue.length > 0) {
-            const id = queue.pop()!
-            toDelete.push(id)
-            const kids = await tx.collection.findMany({ where: { parentId: id }, select: { id: true } })
-            for (const k of kids) queue.push(k.id)
+        // Phase 1: snapshot existing subtree for identity-based upsert matching.
+        // BFS over the current DB tree; frontier starts at root (loads its children + requests).
+        const folderByClientId = new Map<string, CollectionRow>()
+        const requestByClientId = new Map<string, CollectionRequestRow>()
+        const existingSubFolderIds: number[] = []
+
+        let frontier = [args.root.id]
+        while (frontier.length > 0) {
+            const [childFolders, requests] = await Promise.all([
+                tx.collection.findMany({ where: { parentId: { in: frontier } } }),
+                tx.collectionRequest.findMany({ where: { folderId: { in: frontier } } })
+            ])
+            for (const f of childFolders) {
+                existingSubFolderIds.push(f.id)
+                if (f.clientFolderId) folderByClientId.set(f.clientFolderId, f)
+            }
+            for (const r of requests) {
+                if (r.clientItemId) requestByClientId.set(r.clientItemId, r)
+            }
+            frontier = childFolders.map((f) => f.id)
         }
-        toDelete.sort((a, b) => b - a)
-        // Drop every request row under this root subtree before rebuilding. Nested folder rows
-        // cascade-delete with folders, but root-level requests (folderId = root.id) did not —
-        // leaving ghosts that made deletes appear to "come back" after sync.
-        const folderIdsToClearRequests = [args.root.id, ...toDelete]
-        await tx.collectionRequest.deleteMany({
-            where: { folderId: { in: folderIdsToClearRequests } },
-        })
-        for (const id of toDelete) {
-            await tx.collection.delete({ where: { id } })
-        }
+
+        // Phase 2: walk the incoming tree, upsert by clientFolderId / clientItemId.
+        const touchedFolderIds = new Set<number>()
+        const touchedRequestIds = new Set<number>()
 
         const walk = async (parentFolderId: number, nodes: unknown[]) => {
             for (let i = 0; i < nodes.length; i++) {
@@ -257,24 +259,51 @@ export class CollectionsService {
                         typeof n.id === 'string' && n.id.trim() ? n.id.trim().slice(0, 191) : null
                     const folderDescription =
                         typeof n.description === 'string' ? n.description : null
-                    const folderAuth = this.isRecord(n.auth) ? (n.auth as Prisma.InputJsonValue) : Prisma.JsonNull
-                    const folderVariables = Array.isArray(n.variables) ? (n.variables as Prisma.InputJsonValue) : Prisma.JsonNull
-                    const folder = await tx.collection.create({
-                        data: {
-                            parentId: parentFolderId,
-                            sortOrder: i,
-                            workspaceId: args.root.workspaceId,
-                            userId: args.root.userId,
-                            name,
-                            description: folderDescription,
-                            auth: folderAuth,
-                            variables: folderVariables,
-                            ...(clientFolderId ? { clientFolderId } : {}),
-                            updatedByUserId: args.userId
-                        }
-                    })
+                    const folderAuth = this.isRecord(n.auth)
+                        ? (n.auth as Prisma.InputJsonValue)
+                        : Prisma.JsonNull
+                    const folderVariables = Array.isArray(n.variables)
+                        ? (n.variables as Prisma.InputJsonValue)
+                        : Prisma.JsonNull
+
+                    let folderId: number
+                    const existingFolder = clientFolderId
+                        ? folderByClientId.get(clientFolderId)
+                        : undefined
+                    if (existingFolder) {
+                        const updated = await tx.collection.update({
+                            where: { id: existingFolder.id },
+                            data: {
+                                parentId: parentFolderId,
+                                sortOrder: i,
+                                name,
+                                description: folderDescription,
+                                auth: folderAuth,
+                                variables: folderVariables,
+                                updatedByUserId: args.userId
+                            }
+                        })
+                        folderId = updated.id
+                    } else {
+                        const created = await tx.collection.create({
+                            data: {
+                                parentId: parentFolderId,
+                                sortOrder: i,
+                                workspaceId: args.root.workspaceId,
+                                userId: args.root.userId,
+                                name,
+                                description: folderDescription,
+                                auth: folderAuth,
+                                variables: folderVariables,
+                                ...(clientFolderId ? { clientFolderId } : {}),
+                                updatedByUserId: args.userId
+                            }
+                        })
+                        folderId = created.id
+                    }
+                    touchedFolderIds.add(folderId)
                     const childItems = Array.isArray(n.items) ? (n.items as unknown[]) : []
-                    await walk(folder.id, childItems)
+                    await walk(folderId, childItems)
                     continue
                 }
 
@@ -299,7 +328,9 @@ export class CollectionsService {
                     const body = (
                         this.isRecord(n.body) ? n.body : { type: 'none', content: '' }
                     ) as Prisma.InputJsonValue
-                    const auth = (this.isRecord(n.auth) ? n.auth : { type: 'inherit' }) as Prisma.InputJsonValue
+                    const auth = (
+                        this.isRecord(n.auth) ? n.auth : { type: 'inherit' }
+                    ) as Prisma.InputJsonValue
                     const scriptsObj = this.isRecord(n.scripts) ? n.scripts : undefined
                     const scriptsJson = scriptsObj ? (scriptsObj as Prisma.InputJsonValue) : undefined
                     const preRequest =
@@ -328,34 +359,78 @@ export class CollectionsService {
                         ? (n.savedResponses as Prisma.InputJsonValue)
                         : Prisma.JsonNull
 
-                    await tx.collectionRequest.create({
-                        data: {
-                            folderId: parentFolderId,
-                            ...(clientItemId ? { clientItemId } : {}),
-                            sortOrder: i,
-                            name,
-                            method: methodRaw.toUpperCase(),
-                            url: urlRaw,
-                            headers,
-                            params,
-                            body,
-                            auth,
-                            scripts: scriptsJson ?? Prisma.JsonNull,
-                            preRequest,
-                            postResponse,
-                            protocol,
-                            subprotocols,
-                            savedMessages,
-                            messageTemplate,
-                            savedResponses
-                        }
-                    })
+                    const requestData = {
+                        sortOrder: i,
+                        name,
+                        method: methodRaw.toUpperCase(),
+                        url: urlRaw,
+                        headers,
+                        params,
+                        body,
+                        auth,
+                        scripts: scriptsJson ?? Prisma.JsonNull,
+                        preRequest,
+                        postResponse,
+                        protocol,
+                        subprotocols,
+                        savedMessages,
+                        messageTemplate,
+                        savedResponses
+                    }
+
+                    let requestId: number
+                    const existingRequest = clientItemId
+                        ? requestByClientId.get(clientItemId)
+                        : undefined
+                    if (existingRequest) {
+                        // Update in place, allowing the item to move to a different folder.
+                        const updated = await tx.collectionRequest.update({
+                            where: { id: existingRequest.id },
+                            data: { folderId: parentFolderId, ...requestData }
+                        })
+                        requestId = updated.id
+                    } else {
+                        const created = await tx.collectionRequest.create({
+                            data: {
+                                folderId: parentFolderId,
+                                ...(clientItemId ? { clientItemId } : {}),
+                                ...requestData
+                            }
+                        })
+                        requestId = created.id
+                    }
+                    touchedRequestIds.add(requestId)
                     continue
                 }
             }
         }
 
         await walk(args.root.id, items)
+
+        // Phase 3: remove items that are no longer in the incoming tree.
+        // Kept folders = root + all folders written during the walk.
+        const keptFolderIds = [args.root.id, ...touchedFolderIds]
+
+        // Delete requests that sit under kept folders but were not in the new tree.
+        // Requests under to-be-deleted folders will be removed via CASCADE below.
+        if (touchedRequestIds.size === 0) {
+            await tx.collectionRequest.deleteMany({
+                where: { folderId: { in: keptFolderIds } }
+            })
+        } else {
+            await tx.collectionRequest.deleteMany({
+                where: {
+                    folderId: { in: keptFolderIds },
+                    id: { notIn: [...touchedRequestIds] }
+                }
+            })
+        }
+
+        // Delete orphaned sub-folders; InnoDB CASCADE removes their remaining children.
+        const foldersToDelete = existingSubFolderIds.filter((id) => !touchedFolderIds.has(id))
+        if (foldersToDelete.length > 0) {
+            await tx.collection.deleteMany({ where: { id: { in: foldersToDelete } } })
+        }
     }
 
     private async mapCollectionRow(
@@ -472,9 +547,20 @@ export class CollectionsService {
             variables?: unknown[]
             sortOrder?: number
         }
-        const { expectedUpdatedAt, force, name, items } = raw
-        if (expectedUpdatedAt && !force) {
-            if (col.updatedAt.toISOString() !== expectedUpdatedAt) {
+
+        // Require the client to echo back the last-known updatedAt for every PATCH.
+        // This prevents silent last-write-wins overwrites in shared workspaces.
+        if (!raw.expectedUpdatedAt) {
+            throw new BadRequestException('expectedUpdatedAt is required')
+        }
+
+        // Only the workspace owner may pass force:true to bypass the OCC check.
+        // Members in shared workspaces cannot skip conflict detection.
+        const isOwner = await this.workspacesService.isWorkspaceOwner(userId, col.workspaceId)
+        const force = isOwner && raw.force === true
+
+        if (!force) {
+            if (col.updatedAt.toISOString() !== raw.expectedUpdatedAt) {
                 const fresh = await this.prismaService.collection.findUniqueOrThrow({
                     where: { id },
                     include: { updatedByUser: { select: updatedBySelect } }
@@ -489,7 +575,8 @@ export class CollectionsService {
                 )
             }
         }
-        const { description, auth, variables, sortOrder } = raw
+
+        const { name, description, auth, variables, sortOrder, items } = raw
         const updated = await this.prismaService.$transaction(async (tx) => {
             const next = await tx.collection.update({
                 where: { id },

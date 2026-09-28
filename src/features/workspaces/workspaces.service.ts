@@ -44,12 +44,17 @@ export class WorkspacesService {
         if (!ok) throw new ForbiddenException()
     }
 
-    async assertWorkspaceOwner(userId: number, workspaceId: number): Promise<void> {
+    async isWorkspaceOwner(userId: number, workspaceId: number): Promise<boolean> {
         const ws = await this.prisma.workspace.findFirst({
             where: { id: workspaceId, userId },
             select: { id: true }
         })
-        if (!ws) throw new ForbiddenException()
+        return ws != null
+    }
+
+    async assertWorkspaceOwner(userId: number, workspaceId: number): Promise<void> {
+        const isOwner = await this.isWorkspaceOwner(userId, workspaceId)
+        if (!isOwner) throw new ForbiddenException()
     }
 
     async findAll(userId: number) {

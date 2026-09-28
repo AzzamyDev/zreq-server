@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common'
+import { Injectable, ForbiddenException, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common'
 import type { Environment, EnvironmentVariable, User } from '@prisma/generated/client'
 import { PrismaService } from 'src/config/prisma/prisma.service'
 import { WorkspacesService } from 'src/features/workspaces/workspaces.service'
@@ -134,12 +134,19 @@ export class EnvironmentsService {
         const env = await this.prismaService.environment.findUniqueOrThrow({ where: { id } })
         await this.workspacesService.assertWorkspaceAccess(userId, env.workspaceId)
         const raw = dto as UpdateEnvironmentDto & { expectedUpdatedAt?: string; force?: boolean }
-        const { expectedUpdatedAt, force, name, variables } = raw
-        if (expectedUpdatedAt && !force) {
-            const expectedMs = Date.parse(expectedUpdatedAt)
-            const serverMs = env.updatedAt.getTime()
-            const stale = !Number.isFinite(expectedMs) || serverMs !== expectedMs
-            if (stale) {
+
+        // Require the client to echo back the last-known updatedAt for every PATCH.
+        if (!raw.expectedUpdatedAt) {
+            throw new BadRequestException('expectedUpdatedAt is required')
+        }
+
+        // Only the workspace owner may pass force:true to bypass the OCC check.
+        const isOwner = await this.workspacesService.isWorkspaceOwner(userId, env.workspaceId)
+        const force = isOwner && raw.force === true
+
+        if (!force) {
+            // Use ISO string comparison, consistent with collections and workspaces.
+            if (env.updatedAt.toISOString() !== raw.expectedUpdatedAt) {
                 const full = await this.prismaService.environment.findUniqueOrThrow({
                     where: { id },
                     include: this.envInclude()
@@ -156,6 +163,7 @@ export class EnvironmentsService {
             }
         }
 
+        const { name, variables } = raw
         if (variables !== undefined) {
             await this.prismaService.environmentVariable.deleteMany({
                 where: { environmentId: id }

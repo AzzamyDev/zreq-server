@@ -115,6 +115,7 @@ model CollectionRequest {
   updatedAt    DateTime   @updatedAt
   folder       Collection @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
+  @@unique([folderId, clientItemId])
   @@index([folderId])
   @@index([folderId, sortOrder])
   @@index([folderId, createdAt])
