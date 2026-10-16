@@ -44,7 +44,7 @@ Task progress:
 
 **Orient first.** Call `workspace_get_context` after choosing a `workspaceId`. It returns workspace details, collections, and environments scoped to that workspace.
 
-**Prefer granular writes.** Use `collections_add_request`, `collections_add_folder`, or `collections_update_request` instead of replacing the entire `items` tree via `collections_update` unless restructuring the whole collection.
+**Prefer granular writes.** Use `collections_add_request`, `collections_add_folder`, `collections_update_request`, `collections_update_folder`, `collections_set_scripts`, `collections_move_item`, or delete helpers instead of replacing the entire `items` tree via `collections_update` unless restructuring the whole collection.
 
 **Scope by workspace.** Pass `workspaceId` to `collections_list`, `collections_create`, and `environments_list`/`environments_create` to avoid cross-workspace confusion.
 
@@ -81,7 +81,7 @@ Pattern for updates:
 - `auth_logout` — revoke stored OAuth profile
 
 ### Workspaces
-- `workspaces_list` / `workspaces_create` / `workspaces_update` / `workspaces_delete`
+- `workspaces_list` / `workspaces_get` / `workspaces_create` / `workspaces_update` / `workspaces_delete`
 - `workspaces_members_list` / `workspaces_members_add` / `workspaces_members_remove`
 - `workspaces_accessible_ids` — lightweight ID list
 - `workspace_get_context` — **start here** for a workspace
@@ -93,8 +93,13 @@ Pattern for updates:
 - `collections_update` — rename or replace entire `items` tree
 - `collections_delete`
 - `collections_add_folder` — `collectionId`, `folderName`, optional `parentFolderId`
+- `collections_update_folder` — rename folder by `folderId`
+- `collections_delete_folder` — delete folder + children by `folderId`
 - `collections_add_request` — add single HTTP/WS request
 - `collections_update_request` — patch one request by `requestId`
+- `collections_delete_request` — delete request by `requestId`
+- `collections_set_scripts` — patch only `preRequest` / `postResponse` on a request
+- `collections_move_item` — move request/folder; omit `targetParentFolderId` for root; rejects cycles
 
 ### Environments
 - `environments_list` — optional `workspaceId`
@@ -119,19 +124,66 @@ Tree nodes use `type: "folder" | "request"`.
   "method": "POST",
   "url": "{{baseUrl}}/auth/login",
   "protocol": "http",
-  "headers": [{ "key": "Content-Type", "value": "application/json", "enabled": true }],
+  "headers": [{ "id": "h1", "key": "Content-Type", "value": "application/json", "enabled": true }],
   "params": [],
   "body": { "type": "json", "content": "{\"email\":\"\",\"password\":\"\"}" },
-  "auth": { "type": "none" },
+  "auth": { "type": "inherit" },
   "scripts": { "preRequest": "", "postResponse": "" }
 }
 ```
+
+**Auth default:** MCP `normalizeItems` / `buildRequestItem` default to `{ "type": "inherit" }` (inherit collection/folder auth). Use `"none"` or a concrete auth type only when intentional. Existing stored rows are not migrated.
+
+**Headers / params:** each row should be `{ id, key, value, enabled }`. MCP `normalizeKvRows` assigns a UUID `id` and defaults `enabled: true` when omitted (or when only `disabled` is present). Prefer passing `enabled: true` explicitly.
 
 **WebSocket request:** set `protocol: "ws"`, `url` with `ws://` or `wss://`, plus optional `subprotocols`, `savedMessages`, `messageTemplate`.
 
 **Variables:** use `{{varName}}` in URL, headers, body — resolved from the active ZReq environment.
 
-**Scripts in MCP args:** pass `preRequest` and `postResponse` as top-level strings (not nested under `scripts`) when using `collections_add_request` / `collections_update_request`.
+**Scripts in MCP args:** pass `preRequest` and `postResponse` as top-level strings (not nested under `scripts`) when using `collections_add_request` / `collections_update_request` / `collections_set_scripts`.
+
+## Writing request scripts (required)
+
+Pre-request and post-response scripts are JavaScript that run with a Postman-like **`pm`** object (same model as the ZReq desktop app). The runtime injects only `pm` — there is no useful bare `console` for the Response → Console tab.
+
+### Logging — use `pm.console` only
+
+| Do | Do not |
+|----|--------|
+| `pm.console.log(...)` | `console.log(...)` |
+| `pm.console.info(...)` | bare `console.*` |
+| `pm.console.warn(...)` | |
+| `pm.console.error(...)` | |
+
+Supported levels (ZReq runtime): **`log`**, **`info`**, **`warn`**, **`error`**. Messages appear in **Response → Console**.
+
+Never write or recommend bare `console.log` / `console.warn` / `console.error` in `preRequest` or `postResponse`.
+
+### Other `pm` APIs (brief)
+
+- `pm.environment.get(key)` / `pm.environment.set(key, value)` — active environment variables
+- `pm.request` — read-only snapshot `{ url, method, headers }` (pre-request mutations do **not** change the outgoing HTTP request)
+- `pm.response` — `null` in pre-request; after response: `.status`, `.body`, `.headers`, `.json()`, `.text()`
+
+### Examples
+
+**preRequest:**
+```js
+pm.console.log('[pre] sending', pm.request.method, pm.request.url);
+pm.environment.set('requestAt', new Date().toISOString());
+```
+
+**postResponse:**
+```js
+pm.console.info('[post] status', pm.response.status);
+if (pm.response.status >= 400) {
+  pm.console.error('[post] failed body', pm.response.body);
+}
+const data = pm.response.json();
+if (data?.token) pm.environment.set('token', data.token);
+```
+
+When setting scripts via MCP, put these strings in `preRequest` / `postResponse` (e.g. `collections_set_scripts`).
 
 ## Common tasks
 
@@ -143,6 +195,15 @@ collections_add_request {
   headers?, body?, parentFolderId?,
   expectedUpdatedAt
 }
+```
+
+### Set scripts / move / delete tree items
+```
+collections_set_scripts { collectionId, requestId, preRequest?, postResponse?, expectedUpdatedAt }
+collections_move_item { collectionId, itemId, targetParentFolderId?, index?, expectedUpdatedAt }
+collections_update_folder { collectionId, folderId, folderName, expectedUpdatedAt }
+collections_delete_request { collectionId, requestId, expectedUpdatedAt }
+collections_delete_folder { collectionId, folderId, expectedUpdatedAt }
 ```
 
 ### Bootstrap workspace from OpenAPI spec
@@ -175,7 +236,8 @@ environments_update { id, variables: [...], expectedUpdatedAt }
 | `needsAuth` | `mcp_auth` on that server, complete browser login |
 | 401 after auth | Re-auth; check MCP OAuth client in ZReq Settings |
 | `Parent folder not found` | Re-fetch collection; verify `parentFolderId` matches a folder `id` |
-| `Request not found` | Re-fetch collection; verify `requestId` |
+| `Request not found` / `Folder not found` / `Item not found` | Re-fetch collection; verify ids |
+| Cannot move folder into itself/descendant | Pick a non-descendant `targetParentFolderId` (or omit for root) |
 | Conflict / stale write | Re-read `updatedAt`, retry with fresh `expectedUpdatedAt` |
 | `serverStatus: error` | Re-run `GetMcpTools pattern "zreq"`; pick another server or ask user to fix MCP config |
 | No ZReq server found | Ask user to add ZReq MCP server in Cursor MCP settings |

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 110" width="110" height="110">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="130%" y2="130%">
+      <stop offset="0%" stop-color="#0f1623"/>
+      <stop offset="100%" stop-color="#090d18"/>
+    </linearGradient>
+
+    <!-- Zap fill gradient: white top → blue bottom -->
+    <linearGradient id="zapGrad" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#4f8fff"/>
+    </linearGradient>
+
+    <!-- Subtle glow behind zap -->
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft shadow for depth -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#2563eb" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="110" height="110" fill="url(#bg)" rx="22"/>
+
+  <!-- Subtle inner border -->
+  <rect x="1" y="1" width="108" height="108" rx="21"
+    fill="none" stroke="#1a2744" stroke-width="1"/>
+
+  <!-- ── Zap icon, centered, scaled to ~58px tall ── -->
+  <!-- Original viewBox 0 0 24 24 → scale factor: 58/24 = 2.417 -->
+  <!-- Centered: offsetX = (110 - 24*2.417)/2 = (110-58)/2 = 26 -->
+  <!-- offsetY = (110 - 58)/2 = 26 -->
+  <g transform="translate(26, 26) scale(2.417)">
+    <!-- Glow layer (blue tinted, blurred) -->
+    <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"
+      fill="#3b82f6" opacity="0.4" filter="url(#glow)"/>
+
+    <!-- Main zap shape — filled, gradient -->
+    <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"
+      fill="url(#zapGrad)" filter="url(#shadow)"/>
+  </g>
+</svg>

@@ -66,6 +66,11 @@ export class WorkspacesService {
         })
     }
 
+    async findOne(id: number, userId: number) {
+        await this.assertWorkspaceAccess(userId, id)
+        return this.prisma.workspace.findUniqueOrThrow({ where: { id } })
+    }
+
     async create(userId: number, dto: CreateWorkspaceDto) {
         const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
         if (!user) {

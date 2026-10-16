@@ -6,7 +6,6 @@ import {
     Query,
     Res,
     Req,
-    InternalServerErrorException,
     BadRequestException
 } from '@nestjs/common'
 import { Request, Response } from 'express'
@@ -15,6 +14,8 @@ import { AuthService } from './auth.service'
 import { RegisterDto } from './dto/register.dto'
 import { LoginDto } from './dto/login.dto'
 import { sendHtmlRedirect } from 'src/config/oauth-html-redirect.util'
+import { resolveGithubOAuthEnv } from 'src/helpers/github-oauth-config'
+import { errorBodyHtml, oauthPageShell } from 'src/helpers/oauth-pages'
 
 /**
  * Web SPA: hash (works with static hosting).
@@ -68,15 +69,28 @@ export class AuthController {
 
     @Get('github')
     githubStart(@Res({ passthrough: false }) res: Response): void {
-        const clientId = this.configService.get<string>('GITHUB_CLIENT_ID')
-        const callbackUrl = this.configService.get<string>('GITHUB_CALLBACK_URL')
-        if (!clientId || !callbackUrl) {
-            throw new InternalServerErrorException('GitHub OAuth is not configured')
+        const github = resolveGithubOAuthEnv(
+            this.configService.get<string>('GITHUB_CLIENT_ID'),
+            this.configService.get<string>('GITHUB_CALLBACK_URL')
+        )
+        if (!github) {
+            const html = oauthPageShell({
+                title: 'ZReq — GitHub unavailable',
+                pill: 'GitHub OAuth',
+                cardTitle: 'GitHub sign-in unavailable',
+                cardDescription:
+                    'GitHub OAuth is not configured on this server. Set GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and a real GITHUB_CALLBACK_URL (not the .env.example placeholder).',
+                body: errorBodyHtml({
+                    message: 'After updating .env, restart the API and try again.'
+                })
+            })
+            res.status(500).type('html').send(html)
+            return
         }
         const state = this.authService.createGithubOAuthState()
         const params = new URLSearchParams({
-            client_id: clientId,
-            redirect_uri: callbackUrl,
+            client_id: github.clientId,
+            redirect_uri: github.callbackUrl,
             scope: 'read:user user:email',
             state
         })

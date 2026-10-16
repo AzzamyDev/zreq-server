@@ -24,6 +24,18 @@ export class WorkspacesMcpTool {
         return { ok: true, message: 'Workspaces fetched successfully', data }
     }
 
+    @ToolScopes(['workspaces:read'])
+    @Tool({
+        name: 'workspaces_get',
+        description: 'Get workspace by id',
+        parameters: z.object({ id: z.number().int().positive() })
+    })
+    async get(args: { id: number }, _context: unknown, req?: McpRequestWithUser) {
+        const userId = await this.identityService.resolveUserId(req)
+        const data = await this.workspacesService.findOne(args.id, userId)
+        return { ok: true, message: 'Workspace fetched successfully', data }
+    }
+
     @ToolScopes(['workspaces:write'])
     @Tool({
         name: 'workspaces_create',

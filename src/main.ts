@@ -1,3 +1,4 @@
+import { join } from 'path'
 import { HttpAdapterHost, NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module'
 import { NotFoundExceptionFilter } from './config/exception/NotFoundExceptionFilter'
@@ -44,6 +45,7 @@ const createRateLimitMiddleware = (limit: number, windowMs: number) => {
 async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule)
     app.set('trust proxy', 1)
+    app.useStaticAssets(join(process.cwd(), 'public'))
 
     const httpAdapter = app.getHttpAdapter()
     const expressApp = httpAdapter.getInstance() as import('express').Express

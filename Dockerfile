@@ -28,6 +28,7 @@ RUN pnpm install --frozen-lockfile --prod
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+COPY public ./public
 COPY prisma.config.ts ./
 
 COPY docker-entrypoint.sh /usr/local/bin/
